@@ -77,7 +77,7 @@ The full format is in [`SKILL.md`](skills/code-sketch/SKILL.md); two complete sp
 ## Limitations (v0.1)
 
 Flow and structure diagrams only (no sequence diagrams yet). The PNG preview uses a plain font; in Excalidraw the
-drawing shows in the hand-drawn style. Long chains are laid out vertically. Tested so far on a C# (Unity) project.
+drawing shows in the hand-drawn style. Plain chains wrap into a snake of rows; branching diagrams with several groups can still come out tall. Tested so far on C# (Unity), Go, TypeScript (React Native + Express) and Python projects.
 
 ## License
 
