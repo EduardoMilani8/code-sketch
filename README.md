@@ -1,82 +1,84 @@
 # code-sketch
 
-Uma skill do [Claude Code](https://claude.com/claude-code) que **explica código desenhando**.
-Você aponta uma função, um fluxo ou alguns módulos e ela gera um diagrama pequeno e editável no
-[Excalidraw](https://excalidraw.com), confere o resultado olhando uma prévia em PNG e explica o desenho passo a passo no chat.
+A [Claude Code](https://claude.com/claude-code) skill that **explains code by drawing it**.
+Point it at a function, a call flow or a few modules and it generates a small, editable
+[Excalidraw](https://excalidraw.com) diagram, checks the result by looking at a PNG preview, and walks you through it in chat.
 
-<p align="center"><img src="docs/hit-to-levelup.png" width="340" alt="Exemplo: do golpe da arma ao level-up"></p>
+<p align="center"><img src="docs/hit-to-levelup.png" width="340" alt="Example: from a weapon hit to a level-up"></p>
 
-*(Exemplo real: um jogo estilo Vampire Survivors. O diagrama foi gerado a partir do código.)*
+*(Real example: a Vampire Survivors-style game. The diagram was generated from the source code.)*
 
-## Como funciona
+It is language-agnostic: Claude reads the code, whatever the language, and the script only ever sees a small description of the diagram.
 
-1. O Claude lê o código e escreve uma **spec** curta: blocos, setas e grupos.
-2. Um script (`sketch.mjs`) faz o resto: posiciona tudo, ajusta o tamanho dos blocos e cola as setas nos blocos,
-   então ao arrastar um bloco no Excalidraw as setas o seguem.
-3. O script também gera um PNG. O Claude olha o PNG, corrige o que ficou ruim e só então te entrega o `.excalidraw`.
-4. Por fim ele explica o diagrama em poucas linhas, apontando `arquivo:linha`.
+## How it works
 
-**Diagramas pequenos de propósito.** O script recusa diagramas com mais de 12 blocos, setas demais ou setas
-cruzadas, e diz como encolher (dividir em visão geral + detalhes, juntar blocos, usar grupos em vez de setas).
-Diagrama que ninguém consegue entender de relance não ajuda a entender código.
+1. Claude reads the code and writes a short **spec**: nodes, arrows and groups.
+2. A script (`sketch.mjs`) does the rest: lays everything out, sizes the boxes and binds the arrows to them,
+   so dragging a box in Excalidraw makes its arrows follow.
+3. The script also renders a PNG. Claude looks at it, fixes what looks wrong, and only then hands you the `.excalidraw` file.
+4. Finally it explains the diagram in a few lines, pointing at `file:line`.
 
-## Instalar
+**Small diagrams on purpose.** The script rejects diagrams with more than 12 nodes, too many arrows or crossing
+arrows, and says how to shrink them (split into an overview plus zoom-ins, merge nodes, use groups instead of arrows).
+A diagram nobody can take in at a glance does not help anyone understand code.
 
-Precisa de Node 18+. As dependências (`elkjs`, `@resvg/resvg-js`) se instalam sozinhas na primeira execução.
+## Install
 
-Como plugin do Claude Code:
+Requires Node 18+. Dependencies (`elkjs`, `@resvg/resvg-js`) install themselves on first run.
+
+As a Claude Code plugin:
 
 ```
 /plugin marketplace add EduardoMilani8/code-sketch
 /plugin install code-sketch@code-sketch
 ```
 
-Ou copiando a skill:
+Or copy the skill:
 
 ```bash
 git clone https://github.com/EduardoMilani8/code-sketch
 cp -r code-sketch/skills/code-sketch ~/.claude/skills/
 ```
 
-## Usar
+## Use
 
-Peça normalmente:
+Just ask:
 
-> Explica como os inimigos nascem nesse projeto com um diagrama no excalidraw.
+> Explain how enemy spawning works in this project with an Excalidraw diagram.
 
-O arquivo sai em `./diagrams/<nome>.excalidraw` (com `.png` e `.svg` ao lado).
-Para abrir, arraste o arquivo para excalidraw.com ou use a extensão "Excalidraw" do VS Code.
+The file is written to `./diagrams/<name>.excalidraw` (with a `.png` and `.svg` next to it).
+Open it by dragging it onto excalidraw.com, or with the "Excalidraw" VS Code extension.
 
-### A spec
+### The spec
 
-É isto que o Claude escreve (o diagrama acima vem dela):
+This is what Claude writes (the diagram above comes from a spec like it):
 
 ```json
 {
-  "title": "Do golpe ao level-up",
-  "takeaway": "GameSession é o maestro: um golpe vira dano, loot e XP.",
+  "title": "From hit to level-up",
+  "takeaway": "GameSession is the conductor: a hit becomes damage, loot and XP.",
   "nodes": [
     { "id": "hit",  "label": "HitEnemy", "sub": "GameSession.cs:308", "focus": true },
     { "id": "loot", "label": "DropLoot", "sub": "GameSession.cs:334" }
   ],
-  "edges": [{ "from": "hit", "to": "loot", "label": "morreu" }]
+  "edges": [{ "from": "hit", "to": "loot", "label": "killed" }]
 }
 ```
 
-Você também pode rodar o script direto:
+You can also run the script directly:
 
 ```bash
-node skills/code-sketch/scripts/sketch.mjs minha-spec.json --out ./diagrams
+node skills/code-sketch/scripts/sketch.mjs my-spec.json --out ./diagrams
 ```
 
-Detalhes do formato em [`SKILL.md`](skills/code-sketch/SKILL.md); dois exemplos completos em
+The full format is in [`SKILL.md`](skills/code-sketch/SKILL.md); two complete specs are in
 [`references/examples`](skills/code-sketch/references/examples).
 
-## Limitações (v0.1)
+## Limitations (v0.1)
 
-Só diagramas de fluxo/estrutura (sem diagrama de sequência ainda). A prévia em PNG usa uma fonte comum;
-no Excalidraw o desenho aparece no estilo rabiscado. Cadeias longas saem na vertical.
+Flow and structure diagrams only (no sequence diagrams yet). The PNG preview uses a plain font; in Excalidraw the
+drawing shows in the hand-drawn style. Long chains are laid out vertically. Tested so far on a C# (Unity) project.
 
-## Licença
+## License
 
 MIT
