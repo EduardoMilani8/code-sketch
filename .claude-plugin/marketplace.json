@@ -1,0 +1,11 @@
+{
+  "name": "code-sketch",
+  "owner": { "name": "Eduardo Milani" },
+  "plugins": [
+    {
+      "name": "code-sketch",
+      "source": "./",
+      "description": "Explain code by drawing it: small, editable Excalidraw diagrams with a PNG preview."
+    }
+  ]
+}
