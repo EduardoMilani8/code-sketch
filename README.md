@@ -18,8 +18,8 @@ It is language-agnostic: Claude reads the code, whatever the language, and the s
 3. The script also renders a PNG. Claude looks at it, fixes what looks wrong, and only then hands you the `.excalidraw` file.
 4. Finally it explains the diagram in a few lines, pointing at `file:line`.
 
-**Small diagrams on purpose.** The script rejects diagrams with more than 12 nodes, too many arrows or crossing
-arrows, and says how to shrink them (split into an overview plus zoom-ins, merge nodes, use groups instead of arrows).
+**Small diagrams on purpose.** The script rejects diagrams with more than 12 nodes, too many arrows, too many branches or loops, or crossing
+arrows, and says how to shrink them (draw one phase per diagram, split into an overview plus zoom-ins, merge nodes, use groups instead of arrows).
 A diagram nobody can take in at a glance does not help anyone understand code.
 
 ## Install

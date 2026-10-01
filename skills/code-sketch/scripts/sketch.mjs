@@ -28,6 +28,7 @@ const LIMITS = {
   title: 60,
   crossings: 2,    // edge crossings tolerated after layout
   fanOut: 3,       // arrows leaving one node
+  branches: 2,     // forks (a node with 2+ arrows out) plus loops (back-arrows) in one diagram
   canvas: 2200,    // px, either side
 };
 
@@ -64,7 +65,7 @@ const fail = (title, lines) => {
 };
 
 const SHRINK_TIPS = [
-  'One diagram = one question. Split into an OVERVIEW (≤ 8 nodes, one per module) and separate zoom-in diagrams.',
+  'One diagram = one question and one phase. Split into an OVERVIEW (≤ 8 nodes, one per module) and separate zoom-in diagrams.',
   'Collapse helper nodes into one node and list their names in its `sub` line.',
   'Spend fewer arrows: put related nodes in a `group` (containment says "belongs together" without any arrow).',
   'Drop nodes that do not change the explanation (utils, logging, DTOs, getters).',
@@ -158,6 +159,15 @@ if (enforce) {
   const out = new Map();
   for (const e of edges) out.set(e.from, (out.get(e.from) ?? 0) + 1);
   for (const [id, c] of out) if (c > LIMITS.fanOut) size.push(`"${id}" has ${c} outgoing arrows (max ${LIMITS.fanOut}); group its targets instead`);
+  const next = new Map(nodes.map((n) => [n.id, []]));
+  for (const e of edges) next.get(e.from).push(e.to);
+  const forks = [...next].filter(([, t]) => t.length >= 2).map(([id]) => id);
+  const loops = [], onStack = new Set(), done = new Set();
+  const walk = (id) => { onStack.add(id); for (const t of next.get(id)) { if (onStack.has(t)) loops.push(`${id}→${t}`); else if (!done.has(t)) walk(t); } onStack.delete(id); done.add(id); };
+  const hasIncoming = new Set(edges.map((e) => e.to));
+  for (const n of nodes) if (!hasIncoming.has(n.id) && !done.has(n.id)) walk(n.id);
+  for (const n of nodes) if (!done.has(n.id)) walk(n.id);
+  if (forks.length + loops.length > LIMITS.branches) size.push(`${forks.length + loops.length} branches/loops (max ${LIMITS.branches}): forks at ${forks.join(', ') || '-'}, loops ${loops.join(', ') || '-'}. Branchy diagrams come out as tall strips; draw one phase per diagram.`);
   if (textual.length) fail('Text too long (just shorten it)', textual.map((o) => '• ' + o));
   if (size.length) fail('Diagram too big to stay readable', [...size.map((o) => '• ' + o), '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`)]);
 }
@@ -395,6 +405,7 @@ for (let i = 0; i < routed.length; i++) for (let j = i + 1; j < routed.length; j
 }
 if (enforce) {
   if (W > LIMITS.canvas || H > LIMITS.canvas) fail('Diagram too big to stay readable', [`canvas would be ${W}×${H}px (max ${LIMITS.canvas})`, '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`), '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
+  if ((H > 1.6 * W && H > 1200) || (W > 2.2 * H && W > 1800)) fail('Layout came out as a long strip', [`canvas would be ${W}×${H}px: a deep, branchy graph does not fit one glance.`, '', 'Draw one phase per diagram (one thread/runtime, or one leg of the request), or cut the branches. Each smaller diagram can link to the next in the walkthrough.', '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
   if (crossings > LIMITS.crossings) fail('Too many crossing arrows', [`${crossings} crossings (max ${LIMITS.crossings}) — spaghetti hides the story.`, '', 'Fix: remove arrows that do not carry the story, merge nodes that are always used together, or put them in a `group`.', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
 }
 if (crossings) warnings.push(`${crossings} arrow crossing(s) — consider flipping direction or dropping an arrow`);
