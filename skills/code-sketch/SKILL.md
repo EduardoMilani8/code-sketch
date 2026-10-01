@@ -77,6 +77,17 @@ Patterns that come up in real code:
 - **Names:** drop package/namespace prefixes in labels (`Load`, not `scenario.Load`), put `file:line` in `sub`; for two places, `a.ts:10, :40`.
 - **Same source feeding several nodes:** make it a `data` node and let one arrow leave it, rather than one arrow per consumer.
 
+## Where a picture misleads (real examples)
+
+Arrows imply "A calls B". Code often does something else, so check these before trusting your own diagram:
+
+- **Middleware vs. route.** In an Express app, `authenticate` is mounted once in `index.ts:91` and runs before every route. Drawing `authenticate → PUT /reviews` reads as "the route calls auth". Put the mount point in `sub` ("mounted in index.ts:91") and keep the arrow's `at` on that line.
+- **Who answers.** After a database write, the HTTP response leaves the *route handler*, not the table. An arrow `table → client` is false even though the data came from the table.
+- **Callbacks and props.** `onSaved={handleSaved}` is passed down and called later by the child. The arrow goes from the child that calls it to the handler, and `at` points at the call, not at the place it was passed.
+- **Data vs. calls.** The subtitle file arrives once and afterwards only clock anchors are sent. Arrows suggest every hop carries the subtitle. That is what `insight` is for.
+
+If an arrow could be read two ways, rename its label to say what travels ("200 { review }") or mark it `unsure`.
+
 ## Look-at-the-PNG checklist
 
 - Can you read the story left-to-right / top-to-bottom by following the numbers, without the walkthrough?
