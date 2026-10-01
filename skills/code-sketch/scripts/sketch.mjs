@@ -53,8 +53,10 @@ async function loadDeps() {
   });
   try { return await tryLoad(); } catch {
     console.error('[code-sketch] first run: installing dependencies (elkjs, resvg) …');
-    execSync('npm install --silent --no-audit --no-fund', { cwd: here, stdio: 'inherit' });
-    return tryLoad();
+    try { execSync('npm install --silent --no-audit --no-fund', { cwd: here, stdio: 'inherit' }); return await tryLoad(); } catch (e) {
+      console.error(`\n✗ Could not install dependencies automatically (needs Node 18+ and network access).\n  Run this once, then retry:\n    npm install --prefix "${here}"`);
+      process.exit(3);
+    }
   }
 }
 
@@ -73,6 +75,7 @@ const SHRINK_TIPS = [
 ];
 
 function charW(c) {
+  if (c.codePointAt(0) >= 0x2e80) return 1.0; // CJK / full-width glyphs are about twice as wide
   if ('il.,;:\'|!tfjr I()[]'.includes(c)) return 0.34;
   if ('mwMW@'.includes(c)) return 0.85;
   if (c >= 'A' && c <= 'Z') return 0.66;
@@ -137,6 +140,7 @@ for (const n of nodes) if (n.group && !gids.has(n.group)) problems.push(`node "$
 const seenEdge = new Set();
 for (const e of edges) {
   if (!ids.has(e.from) || !ids.has(e.to)) problems.push(`edge ${e.from}→${e.to}: unknown node id`);
+  if (e.from === e.to) problems.push(`edge ${e.from}→${e.to} points at itself: say "repeats" in the node's sub instead of drawing a loop`);
   const k = e.from + '>' + e.to;
   if (seenEdge.has(k)) problems.push(`duplicate edge ${k} (merge them into one label)`);
   if (seenEdge.has(e.to + '>' + e.from)) problems.push(`${e.from}→${e.to} and ${e.to}→${e.from} both exist: draw one arrow with "both": true and a label like "call / return"`);
@@ -249,7 +253,8 @@ function placeLabels(routed, pos, groupBox) {
     for (const d of offsets) {
       const c = pathPoint(r.points, 0.5 + d);
       const rect = { x: c.x - m.w / 2 - 4, y: c.y - m.h / 2 - 2, w: m.w + 8, h: m.h + 4 };
-      const ok = ![...pos.values()].some((p) => rectsHit(rect, p)) &&
+      const bends = r.points.slice(1, -1).some((b) => b.x > rect.x - 6 && b.x < rect.x + rect.w + 6 && b.y > rect.y - 6 && b.y < rect.y + rect.h + 6);
+      const ok = !bends && ![...pos.values()].some((p) => rectsHit(rect, p)) &&
         ![...groupBox.values()].some((g) => rectsHit(rect, g) && !rectIn(rect, g)) &&
         !placed.some((q) => rectsHit(rect, q));
       if (ok) { best = { c, rect }; break; }
@@ -413,7 +418,7 @@ for (let i = 0; i < routed.length; i++) for (let j = i + 1; j < routed.length; j
 }
 if (enforce) {
   if (W > LIMITS.canvas || H > LIMITS.canvas) fail('Diagram too big to stay readable', [`canvas would be ${W}×${H}px (max ${LIMITS.canvas})`, '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`), '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
-  if ((H > 1.6 * W && H > 1200) || (W > 2.2 * H && W > 1800)) fail('Layout came out as a long strip', [`canvas would be ${W}×${H}px: a deep, branchy graph does not fit one glance.`, '', 'Draw one phase per diagram (one thread/runtime, or one leg of the request), or cut the branches. Each smaller diagram can link to the next in the walkthrough.', '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
+  if ((H > 2 * W && H > 1500) || (W > 2.4 * H && W > 1900)) fail('Layout came out as a long strip', [`canvas would be ${W}×${H}px: a deep, branchy graph does not fit one glance.`, '', 'Likely causes: a long chain split by several groups, or a node with two arrows out (a fork) in the middle of the flow.', 'Fixes, in order: (1) draw one phase per diagram (one thread/runtime, or one leg of the request) and start the next diagram from the node where this one ends; (2) fold side effects (a DB write, a log) into the `sub` of the node that does them, so the fork disappears; (3) drop a group that only repeats information.', '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
   if (crossings > LIMITS.crossings) fail('Too many crossing arrows', [`${crossings} crossings (max ${LIMITS.crossings}) — spaghetti hides the story.`, '', 'Fix: remove arrows that do not carry the story, merge nodes that are always used together, or put them in a `group`.', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
 }
 if (crossings) warnings.push(`${crossings} arrow crossing(s) — consider flipping direction or dropping an arrow`);
@@ -587,7 +592,7 @@ fs.writeFileSync(excalPath, JSON.stringify(scene, null, 2));
 const svg = toSvg(elements);
 fs.writeFileSync(svgPath, svg);
 if (!flag('--no-png')) {
-  const png = new Resvg(svg, { fitTo: { mode: 'width', value: Math.min(Math.max(W, 1100), 1600) }, font: { loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' } }).render().asPng();
+  const png = new Resvg(svg, { fitTo: { mode: 'width', value: Math.min(Math.max(W, 1100), 1600) }, font: { fontFiles: [path.join(here, 'fonts', 'DejaVuSans.ttf')], loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' } }).render().asPng();
   fs.writeFileSync(pngPath, png);
 }
 
