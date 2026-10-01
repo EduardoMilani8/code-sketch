@@ -21,9 +21,9 @@ const LIMITS = {
   nodes: 12,
   edges: 14,
   groups: 4,
-  label: 26,       // chars in a node label
-  sub: 48,         // chars in a node sub-line (file:line, one-line role)
-  edgeLabel: 24,
+  label: 28,       // chars in a node label
+  sub: 56,         // chars in a node sub-line (file:line, one-line role)
+  edgeLabel: 28,
   takeaway: 120,
   title: 60,
   crossings: 2,    // edge crossings tolerated after layout
@@ -142,23 +142,24 @@ for (const e of edges) {
 if (!nodes.length) problems.push('spec has no nodes');
 if (problems.length) fail('Invalid spec', problems);
 
-// ---- validate size limits
+// ---- validate limits (text length is a spec typo-level fix; size needs a smaller diagram)
 if (enforce) {
-  const over = [];
-  if (nodes.length > LIMITS.nodes) over.push(`${nodes.length} nodes (max ${LIMITS.nodes})`);
-  if (edges.length > LIMITS.edges) over.push(`${edges.length} arrows (max ${LIMITS.edges})`);
-  if (groups.length > LIMITS.groups) over.push(`${groups.length} groups (max ${LIMITS.groups})`);
+  const size = [], textual = [];
+  if (nodes.length > LIMITS.nodes) size.push(`${nodes.length} nodes (max ${LIMITS.nodes})`);
+  if (edges.length > LIMITS.edges) size.push(`${edges.length} arrows (max ${LIMITS.edges})`);
+  if (groups.length > LIMITS.groups) size.push(`${groups.length} groups (max ${LIMITS.groups})`);
   for (const n of nodes) {
-    if (n.label.length > LIMITS.label) over.push(`label of "${n.id}" is ${n.label.length} chars (max ${LIMITS.label})`);
-    if ((n.sub ?? '').length > LIMITS.sub) over.push(`sub of "${n.id}" is ${n.sub.length} chars (max ${LIMITS.sub})`);
+    if (n.label.length > LIMITS.label) textual.push(`label of "${n.id}" is ${n.label.length} chars (max ${LIMITS.label}); drop the package prefix, keep the name`);
+    if ((n.sub ?? '').length > LIMITS.sub) textual.push(`sub of "${n.id}" is ${n.sub.length} chars (max ${LIMITS.sub}); keep file:line and 2-3 words`);
   }
-  for (const e of edges) if ((e.label ?? '').length > LIMITS.edgeLabel) over.push(`label of ${e.from}→${e.to} is too long (max ${LIMITS.edgeLabel})`);
-  if ((spec.title ?? '').length > LIMITS.title) over.push(`title too long (max ${LIMITS.title})`);
-  if ((spec.takeaway ?? '').length > LIMITS.takeaway) over.push(`takeaway too long (max ${LIMITS.takeaway}); one sentence`);
+  for (const e of edges) if ((e.label ?? '').length > LIMITS.edgeLabel) textual.push(`arrow label ${e.from}→${e.to} is ${e.label.length} chars (max ${LIMITS.edgeLabel}); say what travels, in few words`);
+  if ((spec.title ?? '').length > LIMITS.title) textual.push(`title is ${spec.title.length} chars (max ${LIMITS.title})`);
+  if ((spec.takeaway ?? '').length > LIMITS.takeaway) textual.push(`takeaway is ${spec.takeaway.length} chars (max ${LIMITS.takeaway}); one short sentence`);
   const out = new Map();
   for (const e of edges) out.set(e.from, (out.get(e.from) ?? 0) + 1);
-  for (const [id, c] of out) if (c > LIMITS.fanOut) over.push(`"${id}" has ${c} outgoing arrows (max ${LIMITS.fanOut}); group its targets instead`);
-  if (over.length) fail('Diagram too big to stay readable', [...over.map((o) => '• ' + o), '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`)]);
+  for (const [id, c] of out) if (c > LIMITS.fanOut) size.push(`"${id}" has ${c} outgoing arrows (max ${LIMITS.fanOut}); group its targets instead`);
+  if (textual.length) fail('Text too long (just shorten it)', textual.map((o) => '• ' + o));
+  if (size.length) fail('Diagram too big to stay readable', [...size.map((o) => '• ' + o), '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`)]);
 }
 
 // ---- measure nodes
@@ -176,9 +177,10 @@ for (const n of nodes) {
   nodeBox.set(n.id, { w, h, labelLines, subLines, lm, sm });
 }
 
-// ---- layout (ELK). Tries several strategies (unless the spec fixes the direction) and keeps the most
-// compact canvas: long chains wrap into rows, wide fan-outs stay left-to-right, tall ones go top-down.
-const GROUP_LABEL_H = 34;
+// ---- layout. Candidates: ELK left-to-right / top-down, plus a "snake" grid when the flow is a plain chain.
+// The most compact one that fits the canvas cap wins. Group boxes are drawn after layout, around their members,
+// so a group can never grow taller than what it contains.
+const GROUP_LABEL_H = 30;
 const GROUP_PAD = 14;
 const MARGIN = 40;
 const title = spec.title ?? baseName;
@@ -191,79 +193,192 @@ const takeLines = spec.takeaway ? wrap(spec.takeaway, 90) : [];
 const titleM = measure([title], 28);
 const takeM = takeLines.length ? measure(takeLines, 18) : { w: 0, h: 0 };
 const headerH = titleM.h + (takeLines.length ? takeM.h + 10 : 0) + 34;
+const hasGroups = groups.length > 0;
 
-const elk = new ELK();
-async function layoutIn({ dir, wrapping }) {
-  const opts = {
-    'elk.algorithm': 'layered', 'elk.direction': dir === 'LR' ? 'RIGHT' : 'DOWN', 'elk.edgeRouting': 'ORTHOGONAL',
-    'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'elk.json.edgeCoords': 'ROOT',
-    'elk.spacing.nodeNode': '50', 'elk.layered.spacing.nodeNodeBetweenLayers': dir === 'LR' ? '60' : '36', 'elk.spacing.edgeNode': '24',
-    'elk.aspectRatio': '1.6', 'elk.layered.wrapping.strategy': wrapping, 'elk.layered.wrapping.correctionFactor': '2', 'elk.spacing.edgeLabel': '6',
-  };
-  const groupKids = new Map();
-  const root = { id: 'root', layoutOptions: opts, children: [], edges: [] };
+function groupBoxesFrom(pos) {
+  const boxes = new Map();
   for (const gr of groups) {
-    const lw = textW(gr.label ?? gr.id, 16);
-    const c = { id: 'g:' + gr.id, children: [], layoutOptions: { 'elk.nodeSize.constraints': 'MINIMUM_SIZE', 'elk.nodeSize.minimum': `(${Math.round(2 * (lw * 1.3 + 40))}, 0)`, 'elk.padding': `[top=${GROUP_LABEL_H + 8},left=${GROUP_PAD},bottom=${GROUP_PAD},right=${GROUP_PAD}]` } };
-    groupKids.set(gr.id, c); root.children.push(c);
+    const ps = nodes.filter((n) => n.group === gr.id).map((n) => pos.get(n.id));
+    if (!ps.length) continue;
+    const x0 = Math.min(...ps.map((p) => p.x)), x1 = Math.max(...ps.map((p) => p.x + p.w));
+    const y0 = Math.min(...ps.map((p) => p.y)), y1 = Math.max(...ps.map((p) => p.y + p.h));
+    const minW = textW(gr.label ?? gr.id, 16) + 2 * GROUP_PAD + 8;
+    const w = Math.max(x1 - x0 + 2 * GROUP_PAD, minW);
+    boxes.set(gr.id, { x: (x0 + x1) / 2 - w / 2, y: y0 - GROUP_PAD - GROUP_LABEL_H, w, h: y1 - y0 + 2 * GROUP_PAD + GROUP_LABEL_H });
   }
-  for (const n of nodes) {
-    const b = nodeBox.get(n.id);
-    (n.group ? groupKids.get(n.group).children : root.children).push({ id: n.id, width: b.w, height: b.h });
-  }
-  edges.forEach((e, i) => {
-    const lb = edgeLabels[i];
-    root.edges.push({
-      id: 'e' + i, sources: [e.from], targets: [e.to],
-      labels: lb.lines.length ? [{ text: 'x', width: lb.m.w + 12, height: lb.m.h + 6  }] : [],
-    });
-  });
-  const res = await elk.layout(root);
+  return boxes;
+}
 
-  const pos = new Map(), groupBox = new Map();
-  const walk = (c, ox, oy) => {
-    for (const k of c.children ?? []) {
-      const x = ox + k.x, y = oy + k.y;
-      if (k.id.startsWith('g:')) { groupBox.set(k.id.slice(2), { x, y, w: k.width, h: k.height }); walk(k, x, y); } else pos.set(k.id, { x, y, w: k.width, h: k.height });
+const rectsHit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const rectIn = (a, b) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+function pathPoint(points, t) {
+  const lens = points.slice(1).map((p, k) => Math.hypot(p.x - points[k].x, p.y - points[k].y));
+  let rest = lens.reduce((a, b) => a + b, 0) * t, k = 0;
+  while (k < lens.length - 1 && rest > lens[k]) rest -= lens[k++];
+  const u = lens[k] ? rest / lens[k] : 0;
+  return { x: points[k].x + (points[k + 1].x - points[k].x) * u, y: points[k].y + (points[k + 1].y - points[k].y) * u };
+}
+// Excalidraw centres an arrow's label at the path midpoint; we keep it there unless that spot sits on a node,
+// straddles a group border or hits another label, in which case we slide it along the arrow to a free spot.
+function placeLabels(routed, pos, groupBox) {
+  const placed = [];
+  routed.forEach((r, i) => {
+    const m = edgeLabels[i].m;
+    if (!edgeLabels[i].lines.length) { r.x = r.y = 0; return; }
+    const offsets = [0];
+    for (let d = 0.05; d <= 0.45; d += 0.05) offsets.push(-d, d);
+    let best = null;
+    for (const d of offsets) {
+      const c = pathPoint(r.points, 0.5 + d);
+      const rect = { x: c.x - m.w / 2 - 4, y: c.y - m.h / 2 - 2, w: m.w + 8, h: m.h + 4 };
+      const ok = ![...pos.values()].some((p) => rectsHit(rect, p)) &&
+        ![...groupBox.values()].some((g) => rectsHit(rect, g) && !rectIn(rect, g)) &&
+        !placed.some((q) => rectsHit(rect, q));
+      if (ok) { best = { c, rect }; break; }
     }
-  };
-  walk(res, 0, 0);
-  const routed = res.edges.map((e, i) => {
-    const sec = e.sections[0];
-    const points = [sec.startPoint, ...(sec.bendPoints ?? []), sec.endPoint];
-    // Excalidraw centres an arrow's bound label at the midpoint of the path (by length), so do the same
-    const lens = points.slice(1).map((p, k) => Math.hypot(p.x - points[k].x, p.y - points[k].y));
-    let half = lens.reduce((a, b) => a + b, 0) / 2, k = 0;
-    while (k < lens.length - 1 && half > lens[k]) half -= lens[k++];
-    const t = lens[k] ? half / lens[k] : 0;
-    return { points, x: points[k].x + (points[k + 1].x - points[k].x) * t, y: points[k].y + (points[k + 1].y - points[k].y) * t };
+    best ??= (() => { const c = pathPoint(r.points, 0.5); return { c, rect: { x: c.x - m.w / 2, y: c.y - m.h / 2, w: m.w, h: m.h } }; })();
+    r.x = best.c.x; r.y = best.c.y; placed.push(best.rect);
   });
+}
 
+function finish(name, pos, routed) {
+  const groupBox = groupBoxesFrom(pos);
+  placeLabels(routed, pos, groupBox);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const grow = (x, y, w, h) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h); };
   for (const p of pos.values()) grow(p.x, p.y, p.w, p.h);
   for (const p of groupBox.values()) grow(p.x, p.y, p.w, p.h);
   routed.forEach((r, i) => { for (const pt of r.points) grow(pt.x, pt.y, 0, 0); if (edgeLabels[i].lines.length) grow(r.x - edgeLabels[i].m.w / 2, r.y - edgeLabels[i].m.h / 2, edgeLabels[i].m.w, edgeLabels[i].m.h); });
-
   const bodyW = maxX - minX, bodyH = maxY - minY;
   const inner = Math.max(bodyW, titleM.w, takeM.w);
+  const overlaps = [];
+  for (const [gid, box] of groupBox) for (const n of nodes) if (n.group !== gid && rectsHit(box, pos.get(n.id))) overlaps.push(`group "${gid}" box covers node "${n.id}"`);
   return {
-    dir, wrapping, pos, groupBox, routed,
+    name, pos, groupBox, routed, overlaps,
     W: Math.ceil(inner + 2 * MARGIN), H: Math.ceil(bodyH + headerH + 2 * MARGIN),
     offX: MARGIN + (inner - bodyW) / 2 - minX, offY: MARGIN + headerH - minY,
   };
 }
+
+const elk = new ELK();
+async function layoutElk({ dir, wrapping, partition }) {
+  const opts = {
+    'elk.algorithm': 'layered', 'elk.direction': dir === 'LR' ? 'RIGHT' : 'DOWN', 'elk.edgeRouting': 'ORTHOGONAL',
+    'elk.spacing.nodeNode': hasGroups ? '84' : '50',
+    'elk.layered.spacing.nodeNodeBetweenLayers': String((dir === 'LR' ? 70 : 36) + (hasGroups ? 36 : 0)),
+    'elk.spacing.edgeNode': '24', 'elk.spacing.edgeLabel': '6',
+    'elk.aspectRatio': '1.6', 'elk.layered.wrapping.strategy': wrapping, 'elk.layered.wrapping.correctionFactor': '2',
+  };
+  const root = { id: 'root', layoutOptions: opts, edges: [] };
+  if (partition) opts['elk.partitioning.activate'] = 'true';
+  root.children = nodes.map((n) => ({ id: n.id, width: nodeBox.get(n.id).w, height: nodeBox.get(n.id).h, ...(partition ? { layoutOptions: { 'elk.partitioning.partition': String(partition.get(n.id)) } } : {}) }));
+  edges.forEach((e, i) => {
+    const lb = edgeLabels[i];
+    root.edges.push({ id: 'e' + i, sources: [e.from], targets: [e.to], labels: lb.lines.length ? [{ text: 'x', width: lb.m.w + 12, height: lb.m.h + 6 }] : [] });
+  });
+  const res = await elk.layout(root);
+  const pos = new Map(res.children.map((k) => [k.id, { x: k.x, y: k.y, w: k.width, h: k.height }]));
+  const routed = res.edges.map((e) => {
+    const sec = e.sections[0];
+    return { points: [sec.startPoint, ...(sec.bendPoints ?? []), sec.endPoint], x: 0, y: 0 };
+  });
+  return finish(`elk-${dir}-${wrapping}${partition ? '-part' : ''}`, pos, routed);
+}
+
+// A plain chain (every node has at most one arrow in and one out) reads best as a snake: rows that alternate
+// direction, so the picture is landscape instead of a skinny column.
+function chainOrder() {
+  if (nodes.length < 4 || edges.length !== nodes.length - 1) return null;
+  const next = new Map(), hasIn = new Set();
+  for (const e of edges) { if (next.has(e.from) || hasIn.has(e.to)) return null; next.set(e.from, e.to); hasIn.add(e.to); }
+  const starts = nodes.filter((n) => !hasIn.has(n.id));
+  if (starts.length !== 1) return null;
+  const order = [];
+  for (let id = starts[0].id; id; id = next.get(id)) { if (order.includes(id)) return null; order.push(id); }
+  if (order.length !== nodes.length) return null;
+  for (const gr of groups) { // members of a group must be consecutive in the chain
+    const idx = order.map((id, i) => (nodes.find((n) => n.id === id).group === gr.id ? i : -1)).filter((i) => i >= 0);
+    if (idx.length && idx[idx.length - 1] - idx[0] + 1 !== idx.length) return null;
+  }
+  return order;
+}
+function layoutSnake(order, k) {
+  const gOf = (id) => nodes.find((n) => n.id === id)?.group;
+  const rows = [[]];
+  order.forEach((id, i) => {
+    const g = gOf(id);
+    const startsGroup = g && gOf(order[i - 1]) !== g;
+    const size = g ? order.filter((o) => gOf(o) === g).length : 1;
+    let row = rows[rows.length - 1];
+    if (row.length && (row.length >= k || (startsGroup && size <= k && row.length + size > k))) rows.push((row = []));
+    row.push(id);
+  });
+  const maxLabW = Math.max(0, ...edgeLabels.map((l) => l.m.w)), maxLabH = Math.max(0, ...edgeLabels.map((l) => l.m.h));
+  const gapX = Math.max(100, maxLabW + 56), gapY = Math.max(70, maxLabH + 50) + (hasGroups ? 50 : 0);
+  const colW = Math.max(...order.map((id) => nodeBox.get(id).w));
+  const pos = new Map();
+  let y = 0;
+  rows.forEach((row, r) => {
+    const rowH = Math.max(...row.map((id) => nodeBox.get(id).h));
+    row.forEach((id, c) => {
+      const b = nodeBox.get(id), col = r % 2 ? row.length - 1 - c + (k - row.length) : c;
+      pos.set(id, { x: col * (colW + gapX) + (colW - b.w) / 2, y: y + (rowH - b.h) / 2, w: b.w, h: b.h });
+    });
+    y += rowH + gapY;
+  });
+  const rowOf = new Map(rows.flatMap((row, r) => row.map((id) => [id, r])));
+  const routed = edges.map((e) => {
+    const a = pos.get(e.from), b = pos.get(e.to);
+    const ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 }, bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    if (rowOf.get(e.from) === rowOf.get(e.to)) {
+      const right = bc.x > ac.x;
+      return { points: [{ x: right ? a.x + a.w : a.x, y: ac.y }, { x: right ? b.x : b.x + b.w, y: ac.y }], x: 0, y: 0 };
+    }
+    const sy = a.y + a.h, ty = b.y, my = (sy + ty) / 2;
+    return { points: ac.x === bc.x ? [{ x: ac.x, y: sy }, { x: bc.x, y: ty }] : [{ x: ac.x, y: sy }, { x: ac.x, y: my }, { x: bc.x, y: my }, { x: bc.x, y: ty }], x: 0, y: 0 };
+  });
+  return finish(`snake-${k}`, pos, routed);
+}
+
 // prefer canvases near a screen-like shape: penalise the longer side, then the area
-const score = (c) => Math.max(c.W, c.H * 1.4) * 1000 + c.W * c.H / 1000;
-const plans = [];
-if (wantDir !== 'TB') plans.push({ dir: 'LR', wrapping: 'MULTI_EDGE' }, { dir: 'LR', wrapping: 'OFF' });
-if (wantDir !== 'LR') plans.push({ dir: 'TB', wrapping: 'OFF' });
+const score = (c) => c.overlaps.length * 1e10 + (c.W > LIMITS.canvas || c.H > LIMITS.canvas ? 1e9 : 0) + Math.max(c.W, c.H * 1.4) * 1000 + c.W * c.H / 1000;
+// Phase partitions: each group (or each ungrouped node) becomes one band of layers, ordered by flow depth,
+// so a group's members end up side by side instead of interleaved with outsiders.
+function phasePartition() {
+  if (!hasGroups) return null;
+  const out = new Map(nodes.map((n) => [n.id, []]));
+  for (const e of edges) out.get(e.from).push(e.to);
+  const depth = new Map(), state = new Map();
+  const dfs = (id, d) => { // longest path from the roots, ignoring back edges
+    depth.set(id, Math.max(depth.get(id) ?? 0, d)); state.set(id, 1);
+    for (const t of out.get(id)) if (state.get(t) !== 1) dfs(t, d + 1);
+    state.set(id, 2);
+  };
+  const hasIn = new Set(edges.map((e) => e.to));
+  for (const n of nodes) if (!hasIn.has(n.id)) dfs(n.id, 0);
+  for (const n of nodes) if (!depth.has(n.id)) dfs(n.id, 0);
+  const unitOf = (n) => n.group ?? '#' + n.id;
+  const avg = new Map();
+  for (const n of nodes) { const u = unitOf(n), a = avg.get(u) ?? []; a.push(depth.get(n.id)); avg.set(u, a); }
+  const ranked = [...avg.entries()].map(([u, a]) => [u, a.reduce((x, y) => x + y, 0) / a.length]).sort((x, y) => x[1] - y[1]).map(([u]) => u);
+  return new Map(nodes.map((n) => [n.id, ranked.indexOf(unitOf(n))]));
+}
 const cands = [];
-for (const p of plans) { try { cands.push(await layoutIn(p)); } catch (e) { if (process.env.SKETCH_DEBUG) console.error('layout failed', p, e.message); } }
+const tryAdd = async (fn) => { try { cands.push(await fn()); } catch (e) { if (process.env.SKETCH_DEBUG) console.error('layout failed', e.message); } };
+const order = chainOrder();
+if (order && wantDir === 'auto') for (let k = 1; k <= order.length; k++) await tryAdd(async () => layoutSnake(order, k));
+if (wantDir !== 'TB') await tryAdd(() => layoutElk({ dir: 'LR', wrapping: 'MULTI_EDGE' })), await tryAdd(() => layoutElk({ dir: 'LR', wrapping: 'OFF' }));
+if (wantDir !== 'LR') await tryAdd(() => layoutElk({ dir: 'TB', wrapping: 'OFF' }));
+const part = phasePartition();
+if (part) {
+  if (wantDir !== 'TB') await tryAdd(() => layoutElk({ dir: 'LR', wrapping: 'OFF', partition: part }));
+  if (wantDir !== 'LR') await tryAdd(() => layoutElk({ dir: 'TB', wrapping: 'OFF', partition: part }));
+}
 if (!cands.length) fail('Layout failed', ['ELK could not lay this graph out; simplify the groups/edges.']);
-if (process.env.SKETCH_DEBUG) console.error(cands.map((c) => `${c.dir}/${c.wrapping} ${c.W}x${c.H}`).join(' | '));
+if (process.env.SKETCH_DEBUG) console.error(cands.map((c) => `${c.name} ${c.W}x${c.H}`).join(' | '));
 const layout = cands.sort((a, b) => score(a) - score(b))[0];
-const { dir, pos, groupBox, routed, W, H, offX, offY } = layout;
+const { pos, groupBox, routed, W, H, offX, offY } = layout;
+const warnings = [...layout.overlaps.map((o) => o + ' — the group is not one consecutive stretch of the flow; drop the group or reorder')];
 
 // ---- quality metrics
 function segInter(a, b, c, d) {
@@ -278,10 +393,9 @@ for (let i = 0; i < routed.length; i++) for (let j = i + 1; j < routed.length; j
   for (let a = 0; a < A.length - 1 && !hit; a++) for (let b = 0; b < B.length - 1 && !hit; b++) if (segInter(A[a], A[a + 1], B[b], B[b + 1])) hit = true;
   if (hit) crossings++;
 }
-const warnings = [];
 if (enforce) {
-  if (W > LIMITS.canvas || H > LIMITS.canvas) fail('Diagram too big to stay readable', [`canvas would be ${W}×${H}px (max ${LIMITS.canvas})`, '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`)]);
-  if (crossings > LIMITS.crossings) fail('Too many crossing arrows', [`${crossings} crossings (max ${LIMITS.crossings}) — spaghetti hides the story.`, '', 'Fix: remove arrows that do not carry the story, merge nodes that are always used together, put them in a `group`, or flip `direction` (LR ↔ TB).']);
+  if (W > LIMITS.canvas || H > LIMITS.canvas) fail('Diagram too big to stay readable', [`canvas would be ${W}×${H}px (max ${LIMITS.canvas})`, '', 'How to shrink it:', ...SHRINK_TIPS.map((t, i) => `${i + 1}. ${t}`), '', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
+  if (crossings > LIMITS.crossings) fail('Too many crossing arrows', [`${crossings} crossings (max ${LIMITS.crossings}) — spaghetti hides the story.`, '', 'Fix: remove arrows that do not carry the story, merge nodes that are always used together, or put them in a `group`.', '(To see what it looks like anyway, rerun with --no-limits. That preview is for diagnosing only; never deliver it.)']);
 }
 if (crossings) warnings.push(`${crossings} arrow crossing(s) — consider flipping direction or dropping an arrow`);
 // an arrow that cuts through a group it neither starts nor ends in means the group is not contiguous in the flow
@@ -354,7 +468,10 @@ for (const gr of groups) {
   const x = b.x + offX, y = b.y + offY;
   el('rectangle', x, y, b.w, b.h, { id: 'grp_' + gr.id, strokeColor: '#868e96', strokeStyle: 'dashed', strokeWidth: 1, backgroundColor: '#f8f9fa', roundness: { type: 3 } });
   const lbl = text('grp_lbl_' + gr.id, gr.label ?? gr.id, 0, 0, 16, { textAlign: 'left', strokeColor: SUBINK });
+  // keep the label clear of arrows entering the box: try the left corner, then the right one
+  const blocked = (lx) => routed.some((r) => r.points.some((pt, k) => k && segHitsRect({ x: r.points[k - 1].x + offX, y: r.points[k - 1].y + offY }, { x: pt.x + offX, y: pt.y + offY }, { x: lx - 6, y: y + 4, w: lbl.width + 12, h: lbl.height + 8 })));
   lbl.x = x + 14; lbl.y = y + 8;
+  if (blocked(lbl.x)) { const alt = x + b.w - 14 - lbl.width; if (!blocked(alt)) lbl.x = alt; }
 }
 
 // nodes
@@ -394,7 +511,7 @@ edges.forEach((e, i) => {
   const lb = edgeLabels[i];
   if (lb.lines.length) {
     const tid = `arrow_lbl_${i}`;
-    text(tid, lb.lines.join('\n'), r.x + offX, r.y + offY, 16, { containerId: id, strokeColor: '#c2255c' });
+    text(tid, lb.lines.join('\n'), r.x + offX, r.y + offY, 16, { containerId: id, strokeColor: '#495057' });
     a.boundElements.push({ id: tid, type: 'text' });
   }
 });
