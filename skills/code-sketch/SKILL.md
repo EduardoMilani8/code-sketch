@@ -13,13 +13,13 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 
 1. **Pin the question.** Write one sentence the diagram must answer ("How does a hit become a level-up?"). This becomes `takeaway`. If you cannot state it, you are not ready to draw.
 2. **Read just enough code** to answer that question. Note `file:line` for every node you will draw; those references are what lets the reader jump from the picture back to the code.
-3. **Prove every arrow.** An arrow is a claim about the code, and the script cannot check it, so you do. For each arrow, find the line where that call, event, `await` or handoff actually happens and put it in the edge's `at` (`"GameSession.cs:314"`). Direction matters: the arrow starts at whoever *performs* the call or sends the data. If you cannot find the line, either drop the arrow or keep it with `"unsure": true`; it is then drawn dashed with a "?" so the reader knows it is your reading, not the code's. The build warns about arrows that have neither.
+3. **Prove every arrow.** An arrow is a claim about the code, and the script cannot check it, so you do. For each arrow, find the line where that call, event, `await` or handoff actually happens and put it in the edge's `at` (`"GameSession.cs:314"`; if the call and its target are in different files, `"caller.py:81 → callee.py:266"`). Direction matters: the arrow starts at whoever *performs* the call or sends the data. If you cannot find the line, either drop the arrow or keep it with `"unsure": true`; it is then drawn dashed with a "?" so the reader knows it is your reading, not the code's. The build warns about arrows that have neither.
 4. **Choose what to show** (see "Keeping it small"). Aim for 5-8 nodes; the script refuses more than 12.
 5. **Write the spec** to a scratch file (JSON, format below). Write labels and takeaway in the user's language; keep code identifiers verbatim.
 6. **Build:** `node <skill-dir>/scripts/sketch.mjs spec.json --out ./diagrams`
    (first run installs two small npm packages by itself; needs Node 18+.)
    If it exits with an error, read the message: it says how to shrink the diagram. Do the shrinking. Text-length errors just need shorter words. `--no-limits` renders a preview of a rejected spec so you can *see* what is wrong; never deliver that one.
-7. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; you may rebuild at most twice after looking, then deliver the best version and say what is imperfect.
+7. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; builds the script refuses do not count; once you have looked at a PNG, rebuild at most twice, then deliver the best version and say what is imperfect.
 8. **Deliver:** give the `.excalidraw` path (and say it opens at excalidraw.com via Open/drag-and-drop, or in the VS Code "Excalidraw" extension), then a walkthrough in chat: about 6-10 lines following the numbered arrows, each pointing at `file:line`. Mention what you deliberately left out, and say which arrows (if any) are `unsure`. The build output lists every arrow with its proof line; reuse it for the `file:line` references. The walkthrough matters as much as the picture.
 
 ## Spec format
@@ -41,11 +41,11 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 
 | Field | Notes |
 |---|---|
-| `takeaway` / `insight` | `takeaway` answers the question in one grey line under the title. `insight` is optional and goes in a yellow note in the picture: use it for what the arrows *cannot* show or even suggest the opposite of ("the subtitle file arrives once; afterwards only clock anchors travel"). If the arrows already tell the story, skip it. |
+| `takeaway` / `insight` | `takeaway` answers the question in one grey line under the title. `insight` is optional and goes in a yellow note in the picture: use it for what the arrows *cannot* show or even suggest the opposite of ("the subtitle file arrives once; afterwards only clock anchors travel"). Use only names that are visible in the picture, and do not repeat the takeaway. If the arrows already tell the story, skip it. |
 | `direction` | `auto` (default): tries several layouts and keeps the most compact one that fits. A plain chain becomes a "snake" (rows alternating direction). Leave it on auto unless you have a reason; `LR` / `TB` force one. |
 | `numbered` | `true` (default) prefixes arrow labels `1.`, `2.`… in edge order: use for execution/data flow, so the edge order **is** the story. Set `false` for static structure. |
 | `kind` | `entry` (green: where it starts), `process` (blue, default), `data` (purple: state/DB/config/object), `module` (teal: another module/assembly/package of this same project), `external` (grey dashed: outside this codebase: engine, API, user), `decision` (yellow diamond: a branch the reader must notice). |
-| `sub` | Small second line: `file:line` or a 3-6 word role. Max 48 chars; this is also where "which file" goes. |
+| `sub` | Small second line: `file:line` or a 3-6 word role. Max 56 chars; this is also where "which file" goes. |
 | `focus` | Orange thick border. Give it to the one node the reader must remember. |
 | `group` | Dashed box around nodes that form **one consecutive stretch of the flow** (a phase: "setup", "per frame", "on death"). It is not "same file": two methods of one file used at different moments go in different phases, with the file in each `sub`. The script warns when members are not linked to each other. |
 
@@ -72,7 +72,12 @@ Patterns that come up in real code:
 - **Fan-out (goroutines, workers, promises):** one node plus a group labelled "per replica (goroutine ×30)", not 30 arrows. Say the number in the label.
 - **Callbacks, props, event handlers, middleware:** draw them in the order they *run*, and put where they are registered in `sub` ("mounted in index.ts:91"). Do not chain a middleware to a route as if the route called it.
 - **Round trip (client → server → client):** make the response handler its own step ("onSaved → refetch"), usually a second phase. Do not close it with a return arrow from the database; the response leaves the route.
-- **A loop that *is* the story (timers, event loops, polling):** one `dashed` back-arrow labelled with its trigger is fine. More than one back-arrow means you are drawing the wrong level.
+- **A loop that *is* the story (timers, event loops, polling):** between two nodes, one two-headed arrow (`both`) labelled "schedule / timeout"; through three or more nodes, one `dashed` back-arrow labelled with its trigger. More than one loop means you are drawing the wrong level.
+- **Queues and pulls:** a queue is read by its consumer, but data flows queue → consumer. Make the queue the entry node of the next diagram (`sub`: "filled by the HTTP thread") and draw the arrow in the data direction; do not draw consumer → queue pulls.
+- **Side effects:** fold a DB write, log line or cache fill into the `sub` of the node that does it ("upserts reviews · :161") instead of a node plus a fork. A fork mid-flow is the most common reason a diagram turns into a tall strip.
+- **The same lane twice:** two groups may share a label ("main goroutine" before and after the fan-out).
+- **Split diagrams:** begin part 2 with the node where part 1 ended (same label, `sub`: "continues part 1") so the reader can stitch them.
+- **Groups:** a group around one or two nodes rarely earns its box; use it for a real boundary (thread, process, network, persistence).
 - **Plain chain with no branch, no boundary and no loop** is a list. If a numbered list in chat would explain it as well, say so, or add the interesting boundary (thread, process, network, persistence) as a `group` so the picture adds something.
 - **Names:** drop package/namespace prefixes in labels (`Load`, not `scenario.Load`), put `file:line` in `sub`; for two places, `a.ts:10, :40`.
 - **Same source feeding several nodes:** make it a `data` node and let one arrow leave it, rather than one arrow per consumer.
