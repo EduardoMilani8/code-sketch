@@ -1,7 +1,7 @@
 {
   "name": "code-sketch",
   "description": "Explain code by drawing it: turns functions, flows and architecture into small, editable Excalidraw diagrams with a PNG preview.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": { "name": "Eduardo Milani" },
   "license": "MIT",
   "keywords": ["excalidraw", "diagram", "code-explanation", "skill"]
