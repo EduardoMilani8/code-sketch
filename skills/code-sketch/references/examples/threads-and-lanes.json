@@ -1,0 +1,18 @@
+{"title":"Da legenda do Netflix ao overlay","takeaway":"A legenda chega uma vez; depois só chegam âncoras do relógio do vídeo.",
+"groups":[{"id":"ff","label":"Firefox"},{"id":"th","label":"Thread HTTP"},{"id":"ui","label":"Thread Qt (UI)"}],
+"nodes":[
+{"id":"page","label":"page.js","sub":"intercepta TTML · :206","kind":"entry","group":"ff"},
+{"id":"relay","label":"content + background","sub":"content.js:6 · background.js:6","group":"ff"},
+{"id":"rx","label":"Receiver","sub":"receiver.py:34","group":"th"},
+{"id":"q","label":"Fila de eventos","sub":"queue.put + arrived.emit","kind":"data"},
+{"id":"fol","label":"Follower","sub":"follower.py:128 · âncora + TTML","group":"ui","focus":true},
+{"id":"tm","label":"QTimer","sub":"próxima borda de fala","group":"ui"},
+{"id":"ov","label":"CaptionOverlay","sub":"overlay.py:108","group":"ui"}],
+"edges":[
+{"from":"page","to":"relay","label":"postMessage"},
+{"from":"relay","to":"rx","label":"POST /event"},
+{"from":"rx","to":"q","label":"evento"},
+{"from":"q","to":"fol","label":"drain"},
+{"from":"fol","to":"ov","label":"texto atual"},
+{"from":"fol","to":"tm","label":"agenda"},
+{"from":"tm","to":"fol","label":"refresh","dashed":true}]}
