@@ -121,7 +121,7 @@ const nodes = spec.nodes ?? [];
 const edges = spec.edges ?? [];
 const groups = spec.groups ?? [];
 const wantDir = spec.direction === 'TB' || spec.direction === 'LR' ? spec.direction : 'auto';
-const numbered = spec.numbered !== false && edges.some((e) => e.label);
+const numbered = spec.numbered !== false && edges.some((e) => e.label || e.unsure);
 
 // ---- validate structure
 const problems = [];
@@ -198,7 +198,8 @@ const GROUP_PAD = 14;
 const MARGIN = 40;
 const title = spec.title ?? baseName;
 const edgeLabels = edges.map((e, i) => {
-  const t = e.label ? (numbered ? `${i + 1}. ${e.label}` : e.label) : '';
+  const text = (e.label ?? '') + (e.unsure ? (e.label ? ' ?' : '?') : '');
+  const t = text ? (numbered ? `${i + 1}. ${text}` : text) : '';
   const lines = t ? wrap(t, 22).slice(0, 2) : [];
   return { lines, m: lines.length ? measure(lines, 16) : { w: 0, h: 0 } };
 });
@@ -443,6 +444,9 @@ for (const gr of groups) {
   }
   if (seen.size < members.length) warnings.push(`group "${gr.id}": ${members.filter((m) => !seen.has(m)).join(', ')} not linked by arrows to the rest of the group — a group must be one consecutive stretch of the flow; to say "same file", put the file in the node's sub instead`);
 }
+// every arrow is a claim about the code: it needs the line that proves it (`at`), or an honest `unsure`
+const unproven = edges.map((e, i) => (!e.at && !e.unsure ? `${i + 1}. ${e.from}→${e.to}` : null)).filter(Boolean);
+if (unproven.length) warnings.push(`arrows with no \`at\` (file:line that proves the call/handoff) and not marked unsure: ${unproven.join(', ')} — find the line or set "unsure": true`);
 const connected = new Set(edges.flatMap((e) => [e.from, e.to]));
 for (const n of nodes) if (!connected.has(n.id) && nodes.length > 1) warnings.push(`"${n.id}" has no arrows (fine only if its group explains it)`);
 if (!nodes.some((n) => n.focus)) warnings.push('no node has `focus: true` — mark the one thing the reader should remember');
@@ -524,7 +528,7 @@ edges.forEach((e, i) => {
   const pts = r.points.map((q) => ({ x: q.x + offX, y: q.y + offY }));
   const id = `arrow_${i}`;
   const a = el('arrow', pts[0].x, pts[0].y, Math.max(...pts.map((q) => q.x)) - Math.min(...pts.map((q) => q.x)), Math.max(...pts.map((q) => q.y)) - Math.min(...pts.map((q) => q.y)), {
-    id, strokeColor: '#343a40', strokeStyle: e.dashed ? 'dashed' : 'solid',
+    id, strokeColor: '#343a40', strokeStyle: e.dashed || e.unsure ? 'dashed' : 'solid',
     points: pts.map((q) => [Math.round((q.x - pts[0].x) * 10) / 10, Math.round((q.y - pts[0].y) * 10) / 10]),
     lastCommittedPoint: null, startArrowhead: e.both ? 'arrow' : null, endArrowhead: 'arrow', elbowed: false,
     startBinding: { elementId: shapeIds.get(e.from), focus: 0, gap: 2 },
@@ -589,5 +593,7 @@ if (!flag('--no-png')) {
 
 console.log(`✓ ${nodes.length} nodes, ${edges.length} arrows, ${groups.length} groups, ${crossings} crossing(s), canvas ${W}×${H}px`);
 for (const w of warnings) console.log('  ! ' + w);
+const proofs = edges.map((e, i) => `    ${i + 1}. ${e.from} → ${e.to}  ${e.at ?? (e.unsure ? '(inferred, not read in code)' : '(no proof given)')}`);
+if (edges.length) console.log('  arrows and where the code proves them (use in your walkthrough):\n' + proofs.join('\n'));
 console.log(`  excalidraw: ${excalPath}`);
 if (!flag('--no-png')) console.log(`  preview (LOOK AT THIS with the Read tool): ${pngPath}`);

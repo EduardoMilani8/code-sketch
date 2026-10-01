@@ -38,18 +38,21 @@
     {
       "from": "q",
       "to": "fol",
-      "label": "drain"
+      "label": "drain",
+      "at": "app.py:71"
     },
     {
       "from": "fol",
       "to": "ov",
-      "label": "current text"
+      "label": "current text",
+      "at": "overlay.py:108"
     },
     {
       "from": "fol",
       "to": "tm",
       "label": "schedule / refresh",
-      "both": true
+      "both": true,
+      "at": "app.py:79"
     }
   ],
   "insight": "The TTML subtitle file arrives only once. After that, only small clock anchors arrive."

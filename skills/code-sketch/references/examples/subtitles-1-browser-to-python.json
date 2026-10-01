@@ -1,16 +1,63 @@
 {
   "title": "Subtitles, part 1: browser to Python",
   "takeaway": "The page hands events to a local HTTP thread, which queues them for the UI.",
-  "groups": [{ "id": "ff", "label": "Firefox" }, { "id": "th", "label": "HTTP thread" }],
+  "groups": [
+    {
+      "id": "ff",
+      "label": "Firefox"
+    },
+    {
+      "id": "th",
+      "label": "HTTP thread"
+    }
+  ],
   "nodes": [
-    { "id": "page", "label": "page.js", "sub": "intercepts TTML · :206", "kind": "entry", "group": "ff" },
-    { "id": "relay", "label": "content + background", "sub": "content.js:6 · background.js:6", "group": "ff" },
-    { "id": "rx", "label": "Receiver", "sub": "receiver.py:34", "group": "th" },
-    { "id": "q", "label": "Event queue", "sub": "queue.put + arrived.emit", "kind": "data", "group": "th" }
+    {
+      "id": "page",
+      "label": "page.js",
+      "sub": "intercepts TTML · :206",
+      "kind": "entry",
+      "group": "ff"
+    },
+    {
+      "id": "relay",
+      "label": "content + background",
+      "sub": "content.js:6 · background.js:6",
+      "group": "ff"
+    },
+    {
+      "id": "rx",
+      "label": "Receiver",
+      "sub": "receiver.py:34",
+      "group": "th"
+    },
+    {
+      "id": "q",
+      "label": "Event queue",
+      "sub": "queue.put + arrived.emit",
+      "kind": "data",
+      "group": "th",
+      "focus": true
+    }
   ],
   "edges": [
-    { "from": "page", "to": "relay", "label": "postMessage" },
-    { "from": "relay", "to": "rx", "label": "POST /event" },
-    { "from": "rx", "to": "q", "label": "event" }
+    {
+      "from": "page",
+      "to": "relay",
+      "label": "postMessage",
+      "at": "page.js:22"
+    },
+    {
+      "from": "relay",
+      "to": "rx",
+      "label": "POST /event",
+      "at": "background.js:6"
+    },
+    {
+      "from": "rx",
+      "to": "q",
+      "label": "event",
+      "at": "receiver.py:34"
+    }
   ]
 }

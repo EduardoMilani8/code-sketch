@@ -13,13 +13,14 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 
 1. **Pin the question.** Write one sentence the diagram must answer ("How does a hit become a level-up?"). This becomes `takeaway`. If you cannot state it, you are not ready to draw.
 2. **Read just enough code** to answer that question. Note `file:line` for every node you will draw; those references are what lets the reader jump from the picture back to the code.
-3. **Choose what to show** (see "Keeping it small"). Aim for 5-8 nodes; the script refuses more than 12.
-4. **Write the spec** to a scratch file (JSON, format below). Write labels and takeaway in the user's language; keep code identifiers verbatim.
-5. **Build:** `node <skill-dir>/scripts/sketch.mjs spec.json --out ./diagrams`
+3. **Prove every arrow.** An arrow is a claim about the code, and the script cannot check it, so you do. For each arrow, find the line where that call, event, `await` or handoff actually happens and put it in the edge's `at` (`"GameSession.cs:314"`). Direction matters: the arrow starts at whoever *performs* the call or sends the data. If you cannot find the line, either drop the arrow or keep it with `"unsure": true`; it is then drawn dashed with a "?" so the reader knows it is your reading, not the code's. The build warns about arrows that have neither.
+4. **Choose what to show** (see "Keeping it small"). Aim for 5-8 nodes; the script refuses more than 12.
+5. **Write the spec** to a scratch file (JSON, format below). Write labels and takeaway in the user's language; keep code identifiers verbatim.
+6. **Build:** `node <skill-dir>/scripts/sketch.mjs spec.json --out ./diagrams`
    (first run installs two small npm packages by itself; needs Node 18+.)
    If it exits with an error, read the message: it says how to shrink the diagram. Do the shrinking. Text-length errors just need shorter words. `--no-limits` renders a preview of a rejected spec so you can *see* what is wrong; never deliver that one.
-6. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; you may rebuild at most twice after looking, then deliver the best version and say what is imperfect.
-7. **Deliver:** give the `.excalidraw` path (and say it opens at excalidraw.com via Open/drag-and-drop, or in the VS Code "Excalidraw" extension), then a walkthrough in chat: about 6-10 lines following the numbered arrows, each pointing at `file:line`. Mention what you deliberately left out. The walkthrough matters as much as the picture.
+7. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; you may rebuild at most twice after looking, then deliver the best version and say what is imperfect.
+8. **Deliver:** give the `.excalidraw` path (and say it opens at excalidraw.com via Open/drag-and-drop, or in the VS Code "Excalidraw" extension), then a walkthrough in chat: about 6-10 lines following the numbered arrows, each pointing at `file:line`. Mention what you deliberately left out, and say which arrows (if any) are `unsure`. The build output lists every arrow with its proof line; reuse it for the `file:line` references. The walkthrough matters as much as the picture.
 
 ## Spec format
 
@@ -34,7 +35,7 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
   "nodes": [
     { "id": "a", "label": "HitEnemy", "sub": "GameSession.cs:308", "kind": "process", "group": "g1", "focus": true }
   ],
-  "edges": [{ "from": "a", "to": "b", "label": "morreu", "dashed": false }]
+  "edges": [{ "from": "a", "to": "b", "label": "morreu", "at": "GameSession.cs:321" }]
 }
 ```
 
@@ -47,6 +48,8 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 | `sub` | Small second line: `file:line` or a 3-6 word role. Max 48 chars; this is also where "which file" goes. |
 | `focus` | Orange thick border. Give it to the one node the reader must remember. |
 | `group` | Dashed box around nodes that form **one consecutive stretch of the flow** (a phase: "setup", "per frame", "on death"). It is not "same file": two methods of one file used at different moments go in different phases, with the file in each `sub`. The script warns when members are not linked to each other. |
+
+Edge fields: `label` (what travels or why), `at` (file:line proving the arrow), `unsure` (dashed with "?", for inferred arrows), `dashed` (optional/async), `both` (one two-headed arrow instead of A→B plus B→A, e.g. "schedule / refresh").
 
 Edge order matters when `numbered` is on: list edges in the order things happen.
 

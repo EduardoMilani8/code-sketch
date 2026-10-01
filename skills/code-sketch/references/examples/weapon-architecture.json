@@ -2,20 +2,78 @@
   "title": "Como uma arma é montada e disparada",
   "takeaway": "Dados (WeaponData) escolhem o comportamento; o comportamento guarda o estado e dispara via GameSession.",
   "numbered": false,
-  "groups": [{ "id": "equip", "label": "Armas equipadas" }],
+  "groups": [
+    {
+      "id": "equip",
+      "label": "Armas equipadas"
+    }
+  ],
   "nodes": [
-    { "id": "data",    "label": "WeaponData", "sub": "números e tipo de comportamento", "kind": "data" },
-    { "id": "factory", "label": "WeaponBehaviorFactory", "sub": "WeaponInstance.cs", "focus": true },
-    { "id": "pw",      "label": "PlayerWeapons.Add", "sub": "máx. 6 armas", "group": "equip" },
-    { "id": "inst",    "label": "WeaponInstance", "sub": "nível, timer, Behavior", "group": "equip" },
-    { "id": "beh",     "label": "ArcSlash / Orbit / Aura…", "sub": "Tick(dt) dispara", "group": "equip" },
-    { "id": "session", "label": "GameSession", "sub": "HitEnemy, projéteis", "kind": "module" }
+    {
+      "id": "data",
+      "label": "WeaponData",
+      "sub": "números e tipo de comportamento",
+      "kind": "data"
+    },
+    {
+      "id": "factory",
+      "label": "WeaponBehaviorFactory",
+      "sub": "WeaponInstance.cs",
+      "focus": true
+    },
+    {
+      "id": "pw",
+      "label": "PlayerWeapons.Add",
+      "sub": "máx. 6 armas",
+      "group": "equip"
+    },
+    {
+      "id": "inst",
+      "label": "WeaponInstance",
+      "sub": "nível, timer, Behavior",
+      "group": "equip"
+    },
+    {
+      "id": "beh",
+      "label": "ArcSlash / Orbit / Aura…",
+      "sub": "Tick(dt) dispara",
+      "group": "equip"
+    },
+    {
+      "id": "session",
+      "label": "GameSession",
+      "sub": "HitEnemy, projéteis",
+      "kind": "module"
+    }
   ],
   "edges": [
-    { "from": "data", "to": "factory", "label": "behavior" },
-    { "from": "factory", "to": "pw", "label": "cria" },
-    { "from": "pw", "to": "inst" },
-    { "from": "inst", "to": "beh" },
-    { "from": "beh", "to": "session", "label": "dano" }
+    {
+      "from": "data",
+      "to": "factory",
+      "label": "behavior",
+      "at": "PlayerWeapons.cs:34"
+    },
+    {
+      "from": "factory",
+      "to": "pw",
+      "label": "cria",
+      "at": "PlayerWeapons.cs:34"
+    },
+    {
+      "from": "pw",
+      "to": "inst",
+      "at": "PlayerWeapons.cs:33"
+    },
+    {
+      "from": "inst",
+      "to": "beh",
+      "at": "PlayerWeapons.cs:60"
+    },
+    {
+      "from": "beh",
+      "to": "session",
+      "label": "dano",
+      "at": "ArcSlashBehavior.cs:113"
+    }
   ]
 }
