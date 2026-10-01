@@ -138,6 +138,7 @@ for (const e of edges) {
   if (!ids.has(e.from) || !ids.has(e.to)) problems.push(`edge ${e.from}→${e.to}: unknown node id`);
   const k = e.from + '>' + e.to;
   if (seenEdge.has(k)) problems.push(`duplicate edge ${k} (merge them into one label)`);
+  if (seenEdge.has(e.to + '>' + e.from)) problems.push(`${e.from}→${e.to} and ${e.to}→${e.from} both exist: draw one arrow with "both": true and a label like "call / return"`);
   seenEdge.add(k);
 }
 if (!nodes.length) problems.push('spec has no nodes');
@@ -511,7 +512,7 @@ edges.forEach((e, i) => {
   const a = el('arrow', pts[0].x, pts[0].y, Math.max(...pts.map((q) => q.x)) - Math.min(...pts.map((q) => q.x)), Math.max(...pts.map((q) => q.y)) - Math.min(...pts.map((q) => q.y)), {
     id, strokeColor: '#343a40', strokeStyle: e.dashed ? 'dashed' : 'solid',
     points: pts.map((q) => [Math.round((q.x - pts[0].x) * 10) / 10, Math.round((q.y - pts[0].y) * 10) / 10]),
-    lastCommittedPoint: null, startArrowhead: null, endArrowhead: 'arrow', elbowed: false,
+    lastCommittedPoint: null, startArrowhead: e.both ? 'arrow' : null, endArrowhead: 'arrow', elbowed: false,
     startBinding: { elementId: shapeIds.get(e.from), focus: 0, gap: 2 },
     endBinding: { elementId: shapeIds.get(e.to), focus: 0, gap: 2 },
   });
@@ -543,7 +544,9 @@ function toSvg(els) {
       out.push(`<polyline points="${P.map((q) => q.join(',')).join(' ')}" fill="none" stroke="${e.strokeColor}" stroke-width="2"${dash(e)}/>`);
       const [x2, y2] = P[P.length - 1], [x1, y1] = P[P.length - 2];
       const ang = Math.atan2(y2 - y1, x2 - x1);
-      for (const s of [-1, 1]) out.push(`<line x1="${x2}" y1="${y2}" x2="${x2 - 13 * Math.cos(ang + s * 0.45)}" y2="${y2 - 13 * Math.sin(ang + s * 0.45)}" stroke="${e.strokeColor}" stroke-width="2"/>`);
+      const head = (hx, hy, a) => { for (const s of [-1, 1]) out.push(`<line x1="${hx}" y1="${hy}" x2="${hx - 13 * Math.cos(a + s * 0.45)}" y2="${hy - 13 * Math.sin(a + s * 0.45)}" stroke="${e.strokeColor}" stroke-width="2"/>`); };
+      head(x2, y2, ang);
+      if (e.startArrowhead) head(P[0][0], P[0][1], Math.atan2(P[0][1] - P[1][1], P[0][0] - P[1][0]));
     }
   }
   for (const e of els) if (e.type === 'text') {
