@@ -27,6 +27,7 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 {
   "title": "Short title",
   "takeaway": "One sentence: the thing to remember.",
+  "insight": "Optional: a non-obvious fact the arrows do not show.",
   "direction": "auto",
   "numbered": true,
   "groups": [{ "id": "g1", "label": "GameSession.cs" }],
@@ -39,6 +40,7 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 
 | Field | Notes |
 |---|---|
+| `takeaway` / `insight` | `takeaway` answers the question in one grey line under the title. `insight` is optional and goes in a yellow note in the picture: use it for what the arrows *cannot* show or even suggest the opposite of ("the subtitle file arrives once; afterwards only clock anchors travel"). If the arrows already tell the story, skip it. |
 | `direction` | `auto` (default): tries several layouts and keeps the most compact one that fits. A plain chain becomes a "snake" (rows alternating direction). Leave it on auto unless you have a reason; `LR` / `TB` force one. |
 | `numbered` | `true` (default) prefixes arrow labels `1.`, `2.`… in edge order: use for execution/data flow, so the edge order **is** the story. Set `false` for static structure. |
 | `kind` | `entry` (green: where it starts), `process` (blue, default), `data` (purple: state/DB/config/object), `module` (teal: another module/assembly/package of this same project), `external` (grey dashed: outside this codebase: engine, API, user), `decision` (yellow diamond: a branch the reader must notice). |
@@ -50,7 +52,7 @@ Edge order matters when `numbered` is on: list edges in the order things happen.
 
 ## Keeping it small (the guardrails)
 
-The script enforces: ≤ 12 nodes, ≤ 14 arrows, ≤ 4 groups, ≤ 3 arrows leaving one node, ≤ 2 crossings, labels ≤ 28 chars, arrow labels ≤ 28, `sub` ≤ 56, `title` ≤ 60, `takeaway` ≤ 120, canvas ≤ 2200 px. These limits are the point, not an obstacle: past that, the picture stops being understood at a glance. When you hit one, shrink with these moves, in this order:
+The script enforces: ≤ 12 nodes, ≤ 14 arrows, ≤ 4 groups, ≤ 3 arrows leaving one node, ≤ 2 crossings, labels ≤ 28 chars, arrow labels ≤ 28, `sub` ≤ 56, `title` ≤ 60, `takeaway` ≤ 120, `insight` ≤ 150, at most 2 forks/loops combined, canvas ≤ 2200 px. These limits are the point, not an obstacle: past that, the picture stops being understood at a glance. When you hit one, shrink with these moves, in this order:
 
 1. **Narrow the question.** One diagram answers one question. A big topic becomes an *overview* (one node per module, ≤ 8) plus separate *zoom-in* diagrams for the parts the reader asks about. Offer the zoom-ins instead of cramming them in.
 2. **Collapse.** Merge helpers into one node and list them in `sub` ("ArcSlash, Orbit, Aura…"). A data lookup that is just a step belongs in the `sub` of the node that does it, not in its own node + arrow.

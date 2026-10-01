@@ -25,6 +25,7 @@ const LIMITS = {
   sub: 56,         // chars in a node sub-line (file:line, one-line role)
   edgeLabel: 28,
   takeaway: 120,
+  insight: 150,
   title: 60,
   crossings: 2,    // edge crossings tolerated after layout
   fanOut: 3,       // arrows leaving one node
@@ -156,6 +157,7 @@ if (enforce) {
   }
   for (const e of edges) if ((e.label ?? '').length > LIMITS.edgeLabel) textual.push(`arrow label ${e.from}→${e.to} is ${e.label.length} chars (max ${LIMITS.edgeLabel}); say what travels, in few words`);
   if ((spec.title ?? '').length > LIMITS.title) textual.push(`title is ${spec.title.length} chars (max ${LIMITS.title})`);
+  if ((spec.insight ?? '').length > LIMITS.insight) textual.push(`insight is ${spec.insight.length} chars (max ${LIMITS.insight}); one non-obvious fact, not a paragraph`);
   if ((spec.takeaway ?? '').length > LIMITS.takeaway) textual.push(`takeaway is ${spec.takeaway.length} chars (max ${LIMITS.takeaway}); one short sentence`);
   const out = new Map();
   for (const e of edges) out.set(e.from, (out.get(e.from) ?? 0) + 1);
@@ -203,7 +205,11 @@ const edgeLabels = edges.map((e, i) => {
 const takeLines = spec.takeaway ? wrap(spec.takeaway, 90) : [];
 const titleM = measure([title], 28);
 const takeM = takeLines.length ? measure(takeLines, 18) : { w: 0, h: 0 };
-const headerH = titleM.h + (takeLines.length ? takeM.h + 10 : 0) + 34;
+const insightLines = spec.insight ? wrap(spec.insight, 64) : [];
+const insightM = insightLines.length ? measure(insightLines, 16) : { w: 0, h: 0 };
+const INSIGHT_PAD = 14;
+const insightW = insightM.w + 2 * INSIGHT_PAD, insightH = insightM.h + 2 * INSIGHT_PAD;
+const headerH = titleM.h + (takeLines.length ? takeM.h + 10 : 0) + (insightLines.length ? insightH + 14 : 0) + 34;
 const hasGroups = groups.length > 0;
 
 function groupBoxesFrom(pos) {
@@ -261,7 +267,7 @@ function finish(name, pos, routed) {
   for (const p of groupBox.values()) grow(p.x, p.y, p.w, p.h);
   routed.forEach((r, i) => { for (const pt of r.points) grow(pt.x, pt.y, 0, 0); if (edgeLabels[i].lines.length) grow(r.x - edgeLabels[i].m.w / 2, r.y - edgeLabels[i].m.h / 2, edgeLabels[i].m.w, edgeLabels[i].m.h); });
   const bodyW = maxX - minX, bodyH = maxY - minY;
-  const inner = Math.max(bodyW, titleM.w, takeM.w);
+  const inner = Math.max(bodyW, titleM.w, takeM.w, insightW);
   const overlaps = [];
   for (const [gid, box] of groupBox) for (const n of nodes) if (n.group !== gid && rectsHit(box, pos.get(n.id))) overlaps.push(`group "${gid}" box covers node "${n.id}"`);
   return {
@@ -472,6 +478,14 @@ tEl.x = headX; tEl.y = MARGIN;
 if (takeLines.length) {
   const k = text('takeaway', takeLines.join('\n'), 0, 0, 18, { textAlign: 'left', strokeColor: SUBINK });
   k.x = headX; k.y = MARGIN + titleM.h + 10;
+}
+
+// insight: the non-obvious fact that the arrows alone do not show, as a sticky note under the header
+if (insightLines.length) {
+  const iy = MARGIN + titleM.h + (takeLines.length ? takeM.h + 10 : 0) + 14;
+  el('rectangle', MARGIN, iy, insightW, insightH, { id: 'insight_box', backgroundColor: '#fff3bf', strokeColor: '#f08c00', strokeWidth: 1, roundness: { type: 3 } });
+  const t = text('insight', insightLines.join('\n'), 0, 0, 16, { textAlign: 'left', strokeColor: '#5f3b00' });
+  t.x = MARGIN + INSIGHT_PAD; t.y = iy + INSIGHT_PAD;
 }
 
 // groups (drawn first = behind)

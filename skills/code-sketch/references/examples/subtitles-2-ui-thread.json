@@ -1,16 +1,56 @@
 {
   "title": "Subtitles, part 2: the UI thread",
   "takeaway": "The subtitle never travels ready-made: the UI works out the line from the video clock.",
-  "groups": [{ "id": "ui", "label": "Qt UI thread" }],
+  "groups": [
+    {
+      "id": "ui",
+      "label": "Qt UI thread"
+    }
+  ],
   "nodes": [
-    { "id": "q", "label": "Event queue", "sub": "filled by the HTTP thread", "kind": "data" },
-    { "id": "fol", "label": "Follower", "sub": "follower.py:128 · anchor + TTML", "group": "ui", "focus": true },
-    { "id": "ov", "label": "CaptionOverlay", "sub": "overlay.py:108", "group": "ui" },
-    { "id": "tm", "label": "QTimer", "sub": "next speech boundary", "group": "ui" }
+    {
+      "id": "q",
+      "label": "Event queue",
+      "sub": "filled by the HTTP thread",
+      "kind": "data"
+    },
+    {
+      "id": "fol",
+      "label": "Follower",
+      "sub": "follower.py:128 · anchor + TTML",
+      "group": "ui",
+      "focus": true
+    },
+    {
+      "id": "ov",
+      "label": "CaptionOverlay",
+      "sub": "overlay.py:108",
+      "group": "ui"
+    },
+    {
+      "id": "tm",
+      "label": "QTimer",
+      "sub": "next speech boundary",
+      "group": "ui"
+    }
   ],
   "edges": [
-    { "from": "q", "to": "fol", "label": "drain" },
-    { "from": "fol", "to": "ov", "label": "current text" },
-    { "from": "fol", "to": "tm", "label": "schedule / refresh", "both": true }
-  ]
+    {
+      "from": "q",
+      "to": "fol",
+      "label": "drain"
+    },
+    {
+      "from": "fol",
+      "to": "ov",
+      "label": "current text"
+    },
+    {
+      "from": "fol",
+      "to": "tm",
+      "label": "schedule / refresh",
+      "both": true
+    }
+  ],
+  "insight": "The TTML subtitle file arrives only once. After that, only small clock anchors arrive."
 }
