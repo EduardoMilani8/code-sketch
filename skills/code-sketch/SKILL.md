@@ -17,8 +17,8 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 4. **Write the spec** to a scratch file (JSON, format below). Write labels and takeaway in the user's language; keep code identifiers verbatim.
 5. **Build:** `node <skill-dir>/scripts/sketch.mjs spec.json --out ./diagrams`
    (first run installs two small npm packages by itself; needs Node 18+.)
-   If it exits with an error, read the message: it says how to shrink the diagram. Do the shrinking; do not pass `--no-limits`.
-6. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; stop after two revision rounds.
+   If it exits with an error, read the message: it says how to shrink the diagram. Do the shrinking. Text-length errors just need shorter words. `--no-limits` renders a preview of a rejected spec so you can *see* what is wrong; never deliver that one.
+6. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; you may rebuild at most twice after looking, then deliver the best version and say what is imperfect.
 7. **Deliver:** give the `.excalidraw` path (and say it opens at excalidraw.com via Open/drag-and-drop, or in the VS Code "Excalidraw" extension), then a walkthrough in chat: about 6-10 lines following the numbered arrows, each pointing at `file:line`. Mention what you deliberately left out. The walkthrough matters as much as the picture.
 
 ## Spec format
@@ -39,7 +39,7 @@ You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges
 
 | Field | Notes |
 |---|---|
-| `direction` | `auto` (default: tries left-to-right and top-down, keeps the more compact), `LR` or `TB`. Leave it on auto. |
+| `direction` | `auto` (default): tries several layouts and keeps the most compact one that fits. A plain chain becomes a "snake" (rows alternating direction). Leave it on auto unless you have a reason; `LR` / `TB` force one. |
 | `numbered` | `true` (default) prefixes arrow labels `1.`, `2.`… in edge order: use for execution/data flow, so the edge order **is** the story. Set `false` for static structure. |
 | `kind` | `entry` (green: where it starts), `process` (blue, default), `data` (purple: state/DB/config/object), `module` (teal: another module/assembly/package of this same project), `external` (grey dashed: outside this codebase: engine, API, user), `decision` (yellow diamond: a branch the reader must notice). |
 | `sub` | Small second line: `file:line` or a 3-6 word role. Max 48 chars; this is also where "which file" goes. |
@@ -50,7 +50,7 @@ Edge order matters when `numbered` is on: list edges in the order things happen.
 
 ## Keeping it small (the guardrails)
 
-The script enforces: ≤ 12 nodes, ≤ 14 arrows, ≤ 4 groups, ≤ 3 arrows leaving one node, ≤ 2 crossings, labels ≤ 26 chars (arrow labels ≤ 24), `sub` ≤ 48, canvas ≤ 2200 px. These limits are the point, not an obstacle: past that, the picture stops being understood at a glance. When you hit one, shrink with these moves, in this order:
+The script enforces: ≤ 12 nodes, ≤ 14 arrows, ≤ 4 groups, ≤ 3 arrows leaving one node, ≤ 2 crossings, labels ≤ 28 chars, arrow labels ≤ 28, `sub` ≤ 56, `title` ≤ 60, `takeaway` ≤ 120, canvas ≤ 2200 px. These limits are the point, not an obstacle: past that, the picture stops being understood at a glance. When you hit one, shrink with these moves, in this order:
 
 1. **Narrow the question.** One diagram answers one question. A big topic becomes an *overview* (one node per module, ≤ 8) plus separate *zoom-in* diagrams for the parts the reader asks about. Offer the zoom-ins instead of cramming them in.
 2. **Collapse.** Merge helpers into one node and list them in `sub` ("ArcSlash, Orbit, Aura…"). A data lookup that is just a step belongs in the `sub` of the node that does it, not in its own node + arrow.
@@ -63,6 +63,13 @@ Patterns that come up in real code:
 
 - **Setup once + loop per frame:** number setup as steps 1-2 and the loop as 3-N, with a label like "1x, no início" on the setup arrow; give each phase its own `group`.
 - **Call that returns a value:** draw only the forward arrow and say what comes back in its label ("sorteia → posição"). A return arrow doubles the arrows and reads as a loop.
+- **Threads, processes, runtimes:** one `group` per lane (Firefox / HTTP thread / UI thread). Show the handoff object (queue, channel, socket) as a `data` node between lanes and label the arrow with what crosses ("event", "POST /event"). Do not draw a lane for something that is not a stretch of the flow.
+- **Fan-out (goroutines, workers, promises):** one node plus a group labelled "per replica (goroutine ×30)", not 30 arrows. Say the number in the label.
+- **Callbacks, props, event handlers, middleware:** draw them in the order they *run*, and put where they are registered in `sub` ("mounted in index.ts:91"). Do not chain a middleware to a route as if the route called it.
+- **Round trip (client → server → client):** make the response handler its own step ("onSaved → refetch"), usually a second phase. Do not close it with a return arrow from the database; the response leaves the route.
+- **A loop that *is* the story (timers, event loops, polling):** one `dashed` back-arrow labelled with its trigger is fine. More than one back-arrow means you are drawing the wrong level.
+- **Plain chain with no branch, no boundary and no loop** is a list. If a numbered list in chat would explain it as well, say so, or add the interesting boundary (thread, process, network, persistence) as a `group` so the picture adds something.
+- **Names:** drop package/namespace prefixes in labels (`Load`, not `scenario.Load`), put `file:line` in `sub`; for two places, `a.ts:10, :40`.
 - **Same source feeding several nodes:** make it a `data` node and let one arrow leave it, rather than one arrow per consumer.
 
 ## Look-at-the-PNG checklist
