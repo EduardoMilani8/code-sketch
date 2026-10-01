@@ -1,0 +1,82 @@
+---
+name: code-sketch
+description: Explain code by drawing it - turns a function, class, module, call flow or architecture into an editable Excalidraw diagram (plus a PNG preview) that a person can open, tweak and share. Use this whenever the user asks to explain, understand, walk through, visualize, map or "draw" some code, how a feature or request flows, how modules relate, or mentions Excalidraw, a diagram, a flowchart or a whiteboard sketch of code - even if they do not name this skill. Also use it proactively when a text explanation of control flow or architecture would take more than a few paragraphs.
+---
+
+# code-sketch
+
+Goal: help someone **understand code** by giving them one small, correct, good-looking Excalidraw diagram plus a short walkthrough. A diagram that is big, tangled or merely decorative defeats that goal, so this skill is built around keeping it small.
+
+You never write Excalidraw JSON by hand. You write a tiny **spec** (nodes, edges, groups); `scripts/sketch.mjs` does layout, sizing, arrow binding, size guardrails and renders a PNG so you can **look at the result before showing it**.
+
+## Workflow
+
+1. **Pin the question.** Write one sentence the diagram must answer ("How does a hit become a level-up?"). This becomes `takeaway`. If you cannot state it, you are not ready to draw.
+2. **Read just enough code** to answer that question. Note `file:line` for every node you will draw; those references are what lets the reader jump from the picture back to the code.
+3. **Choose what to show** (see "Keeping it small"). Aim for 5-8 nodes; the script refuses more than 12.
+4. **Write the spec** to a scratch file (JSON, format below). Write labels and takeaway in the user's language; keep code identifiers verbatim.
+5. **Build:** `node <skill-dir>/scripts/sketch.mjs spec.json --out ./diagrams`
+   (first run installs two small npm packages by itself; needs Node 18+.)
+   If it exits with an error, read the message: it says how to shrink the diagram. Do the shrinking; do not pass `--no-limits`.
+6. **Look at it.** Open the PNG with the Read tool and run the checklist below. Fix the spec and rebuild; stop after two revision rounds.
+7. **Deliver:** give the `.excalidraw` path (and say it opens at excalidraw.com via Open/drag-and-drop, or in the VS Code "Excalidraw" extension), then a walkthrough in chat: about 6-10 lines following the numbered arrows, each pointing at `file:line`. Mention what you deliberately left out. The walkthrough matters as much as the picture.
+
+## Spec format
+
+```json
+{
+  "title": "Short title",
+  "takeaway": "One sentence: the thing to remember.",
+  "direction": "auto",
+  "numbered": true,
+  "groups": [{ "id": "g1", "label": "GameSession.cs" }],
+  "nodes": [
+    { "id": "a", "label": "HitEnemy", "sub": "GameSession.cs:308", "kind": "process", "group": "g1", "focus": true }
+  ],
+  "edges": [{ "from": "a", "to": "b", "label": "morreu", "dashed": false }]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `direction` | `auto` (default: tries left-to-right and top-down, keeps the more compact), `LR` or `TB`. Leave it on auto. |
+| `numbered` | `true` (default) prefixes arrow labels `1.`, `2.`… in edge order: use for execution/data flow, so the edge order **is** the story. Set `false` for static structure. |
+| `kind` | `entry` (green: where it starts), `process` (blue, default), `data` (purple: state/DB/config/object), `module` (teal: another module/assembly/package of this same project), `external` (grey dashed: outside this codebase: engine, API, user), `decision` (yellow diamond: a branch the reader must notice). |
+| `sub` | Small second line: `file:line` or a 3-6 word role. Max 48 chars; this is also where "which file" goes. |
+| `focus` | Orange thick border. Give it to the one node the reader must remember. |
+| `group` | Dashed box around nodes that form **one consecutive stretch of the flow** (a phase: "setup", "per frame", "on death"). It is not "same file": two methods of one file used at different moments go in different phases, with the file in each `sub`. The script warns when members are not linked to each other. |
+
+Edge order matters when `numbered` is on: list edges in the order things happen.
+
+## Keeping it small (the guardrails)
+
+The script enforces: ≤ 12 nodes, ≤ 14 arrows, ≤ 4 groups, ≤ 3 arrows leaving one node, ≤ 2 crossings, labels ≤ 26 chars (arrow labels ≤ 24), `sub` ≤ 48, canvas ≤ 2200 px. These limits are the point, not an obstacle: past that, the picture stops being understood at a glance. When you hit one, shrink with these moves, in this order:
+
+1. **Narrow the question.** One diagram answers one question. A big topic becomes an *overview* (one node per module, ≤ 8) plus separate *zoom-in* diagrams for the parts the reader asks about. Offer the zoom-ins instead of cramming them in.
+2. **Collapse.** Merge helpers into one node and list them in `sub` ("ArcSlash, Orbit, Aura…"). A data lookup that is just a step belongs in the `sub` of the node that does it, not in its own node + arrow.
+3. **Spend fewer arrows.** An arrow is for something that *happens* (call, data handoff, event). Use a `group` for "belongs together", `sub` for "uses", a `kind` for "what it is". Never draw arrows for imports, inheritance chains or getters unless that is the question. Avoid back-edges/loops unless the loop is the point (label it "repete").
+4. **Drop the irrelevant:** logging, DTOs, utils, null checks, error paths (mention them in the walkthrough if they matter).
+
+Prefer one clean spine with a few side branches over a web.
+
+Patterns that come up in real code:
+
+- **Setup once + loop per frame:** number setup as steps 1-2 and the loop as 3-N, with a label like "1x, no início" on the setup arrow; give each phase its own `group`.
+- **Call that returns a value:** draw only the forward arrow and say what comes back in its label ("sorteia → posição"). A return arrow doubles the arrows and reads as a loop.
+- **Same source feeding several nodes:** make it a `data` node and let one arrow leave it, rather than one arrow per consumer.
+
+## Look-at-the-PNG checklist
+
+- Can you read the story left-to-right / top-to-bottom by following the numbers, without the walkthrough?
+- Is the `focus` node the thing the takeaway is about?
+- Any arrow cutting through a group it does not belong to, or crossing another arrow? (the script prints warnings; the picture confirms)
+- Any label that says nothing (`calls`, `uses`)? Make it say *what* travels or *why*.
+- Would removing any node leave the explanation intact? Then remove it.
+
+The PNG is a plain-font preview; the `.excalidraw` file renders in Excalidraw's hand-drawn style, with arrows bound to their boxes so the user can drag boxes around.
+
+## More
+
+- `references/examples/` has two complete specs (a numbered flow with a group, and a structure diagram). Copy their shape.
+- The output file is named after the spec file; pass `--name hit-to-levelup` to choose it (and `--out` for the folder, relative or absolute). Use a descriptive name: the user will keep these files.
+- `node scripts/sketch.mjs --help` lists options (`--out`, `--name`, `--no-png`).

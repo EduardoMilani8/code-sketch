@@ -1,0 +1,22 @@
+{
+  "title": "Do golpe ao level-up",
+  "takeaway": "GameSession é o maestro: um golpe vira dano, loot e XP, e o próximo Update abre o level-up.",
+  "groups": [{ "id": "session", "label": "GameSession.cs" }],
+  "nodes": [
+    { "id": "tick",  "label": "PlayerWeapons.Tick", "sub": "chamado em Update :217", "kind": "entry" },
+    { "id": "beh",   "label": "WeaponBehavior.Tick", "sub": "ArcSlash, Orbit, Aura…" },
+    { "id": "hit",   "label": "HitEnemy", "sub": "Enemies.Damage tira Hp · :308", "group": "session", "focus": true },
+    { "id": "loot",  "label": "DropLoot", "sub": "cria a gema de XP · :334", "group": "session" },
+    { "id": "gems",  "label": "CollectGems", "sub": "jogador atrai e pega · :219", "group": "session" },
+    { "id": "xp",    "label": "Xp.AddXp", "sub": "acumula PendingLevelUps", "kind": "data" },
+    { "id": "lvl",   "label": "OpenLevelUp", "sub": "Update :188 pausa e sorteia" }
+  ],
+  "edges": [
+    { "from": "tick", "to": "beh", "label": "cada arma" },
+    { "from": "beh",  "to": "hit", "label": "acertou" },
+    { "from": "hit",  "to": "loot", "label": "morreu" },
+    { "from": "loot", "to": "gems", "label": "gema no chão" },
+    { "from": "gems", "to": "xp", "label": "XP somado" },
+    { "from": "xp",   "to": "lvl", "label": "próximo frame" }
+  ]
+}
