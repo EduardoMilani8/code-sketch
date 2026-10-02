@@ -29,6 +29,8 @@ for (const f of fs.readdirSync(examples).filter((x) => x.endsWith('.json'))) {
       (e.boundElements ?? []).every((b) => ids.has(b.id)) && [e.startBinding, e.endBinding].every((b) => !b || ids.has(b.elementId)) && (!e.containerId || ids.has(e.containerId)));
   }
   check(`example ${f} builds into a valid scene`, valid && fs.existsSync(path.join(out, base + '.png')), r.stderr || r.stdout);
+  const page = path.join(out, base + '.html');
+  check(`example ${f} gets an editor page with the scene embedded`, fs.existsSync(page) && fs.readFileSync(page, 'utf8').includes('"elements"') && fs.existsSync(path.join(out, 'latest.html')), 'missing or empty editor page');
 }
 
 // 2. bad specs are refused for the right reason

@@ -2,7 +2,7 @@
 // code-sketch: turn a small diagram spec (JSON) into an editable .excalidraw file
 // plus a PNG preview the model can look at before handing the result to the user.
 //
-//   node sketch.mjs spec.json [--out dir] [--name my-diagram] [--no-png] [--svg] [--no-limits]
+//   node sketch.mjs spec.json [--out dir] [--name my-diagram] [--no-png] [--svg] [--open] [--no-limits]
 //
 // Output goes to one fixed folder (default ~/code-sketch-diagrams, or $CODE_SKETCH_DIR, or --out) and is also
 // copied to latest.excalidraw there, so the file to open in Excalidraw is always at the same path.
@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,7 +43,7 @@ const flag = (n) => args.includes(n);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const specPath = args.find((a, i) => !a.startsWith('--') && (i === 0 || !['--out', '--name'].includes(args[i - 1])));
 if (!specPath || flag('--help')) {
-  console.log('usage: node sketch.mjs <spec.json> [--out dir] [--name file-base] [--no-png] [--svg] [--no-limits]');
+  console.log('usage: node sketch.mjs <spec.json> [--out dir] [--name file-base] [--no-png] [--svg] [--open] [--no-limits]');
   process.exit(specPath ? 0 : 1);
 }
 const outDir = path.resolve(opt('--out', process.env.CODE_SKETCH_DIR || path.join(os.homedir(), 'code-sketch-diagrams')));
@@ -608,7 +608,54 @@ console.log(`✓ ${nodes.length} nodes, ${edges.length} arrows, ${groups.length}
 for (const w of warnings) console.log('  ! ' + w);
 const proofs = edges.map((e, i) => `    ${i + 1}. ${e.from} → ${e.to}  ${e.at ?? (e.unsure ? '(inferred, not read in code)' : '(no proof given)')}`);
 if (edges.length) console.log('  arrows and where the code proves them (use in your walkthrough):\n' + proofs.join('\n'));
+// A self-contained page that opens the real Excalidraw editor with this scene already loaded (editable, saveable).
+// Excalidraw has no URL for local files, so this is the way to open a diagram without drag-and-drop. The scene is
+// embedded in the page and never uploaded; only the Excalidraw library itself is fetched from a CDN.
+const EXCALIDRAW_VERSION = '0.18.0';
+function viewerHtml(sceneJson, heading) {
+  const lib = `https://esm.sh/@excalidraw/excalidraw@${EXCALIDRAW_VERSION}`;
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(heading)} · code-sketch</title>
+<link rel="stylesheet" href="${lib}/dist/prod/index.css">
+<style>html,body,#root{height:100%;margin:0}#fallback{display:none;font:16px system-ui,sans-serif;padding:24px;max-width:640px}</style>
+</head><body>
+<div id="root"></div>
+<div id="fallback"><b>Could not load Excalidraw</b> (offline, or the CDN is blocked). Drag <code>latest.excalidraw</code> from this folder onto <a href="https://excalidraw.com">excalidraw.com</a> instead.</div>
+<script>window.EXCALIDRAW_ASSET_PATH = "${lib}/dist/prod/";</script>
+<script type="importmap">{"imports":{"react":"https://esm.sh/react@19.0.0","react/jsx-runtime":"https://esm.sh/react@19.0.0/jsx-runtime","react-dom":"https://esm.sh/react-dom@19.0.0","react-dom/client":"https://esm.sh/react-dom@19.0.0/client"}}</script>
+<script type="module">
+try {
+  const React = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { Excalidraw } = await import("${lib}?external=react,react-dom");
+  const scene = ${sceneJson.replace(/</g, '\\u003c')};
+  createRoot(document.getElementById("root")).render(
+    React.createElement(Excalidraw, {
+      initialData: { elements: scene.elements, appState: scene.appState },
+      excalidrawAPI: (api) => setTimeout(() => api.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.92 }), 150),
+    }));
+} catch (e) { console.error(e); document.getElementById("fallback").style.display = "block"; }
+</script></body></html>`;
+}
+const htmlPath = path.join(outDir, baseName + '.html');
+fs.writeFileSync(htmlPath, viewerHtml(JSON.stringify({ elements: scene.elements, appState: scene.appState }), title));
+fs.copyFileSync(htmlPath, path.join(outDir, 'latest.html'));
+
 fs.copyFileSync(excalPath, path.join(outDir, 'latest.excalidraw'));
 console.log(`  excalidraw: ${excalPath}`);
 console.log(`  always-the-same path: ${path.join(outDir, 'latest.excalidraw')}`);
+console.log(`  editor page (opens Excalidraw with the diagram): ${path.join(outDir, 'latest.html')}`);
+// open the editor page in the default browser, only when asked (the skill asks on the final build)
+if (flag('--open') && process.env.CODE_SKETCH_OPEN !== '0' && !process.env.CI) {
+  const target = path.join(outDir, 'latest.html');
+  const cmd = process.platform === 'darwin' ? ['open', [target]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', target]] : ['xdg-open', [target]];
+  const hasDisplay = process.platform !== 'linux' || process.env.DISPLAY || process.env.WAYLAND_DISPLAY;
+  if (hasDisplay) {
+    const child = spawn(cmd[0], cmd[1], { detached: true, stdio: 'ignore' });
+    child.on('error', () => console.log('  (could not open the browser automatically; open the editor page above)'));
+    child.unref();
+    console.log('  opened in your default browser');
+  } else console.log('  (no display available; open the editor page above yourself)');
+}
 if (!flag('--no-png')) console.log(`  preview (LOOK AT THIS with the Read tool): ${pngPath}`);
