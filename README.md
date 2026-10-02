@@ -46,14 +46,8 @@ Just ask:
 
 > Explain how enemy spawning works in this project with an Excalidraw diagram.
 
-Files go to one fixed folder, `~/code-sketch-diagrams/` (change it with the `CODE_SKETCH_DIR` environment variable or `--out`).
-Each diagram is named after its title (`.excalidraw`, a `.png` preview and an `.html` editor page), and the newest one is
-always copied to `~/code-sketch-diagrams/latest.excalidraw`, so you always know where to find it.
-
-When Claude finishes, it opens the diagram for you: the `.html` page loads the real Excalidraw editor in your default
-browser with the diagram already in it, editable and saveable. The diagram stays on your machine; only the Excalidraw
-library is fetched from a CDN, so it needs internet. Set `CODE_SKETCH_OPEN=0` to turn auto-open off. You can also drag
-`latest.excalidraw` onto excalidraw.com or open it with the "Excalidraw" VS Code extension.
+Diagrams are saved to `~/code-sketch-diagrams/` (the newest one is always `latest.excalidraw`) and open in
+Excalidraw when Claude finishes. Set `CODE_SKETCH_DIR` to change the folder, or `CODE_SKETCH_OPEN=0` to stop auto-opening.
 
 ### The spec
 
