@@ -46,8 +46,10 @@ Just ask:
 
 > Explain how enemy spawning works in this project with an Excalidraw diagram.
 
-The file is written to `./diagrams/<name>.excalidraw` (with a `.png` and `.svg` next to it).
-Open it by dragging it onto excalidraw.com, or with the "Excalidraw" VS Code extension.
+Files go to one fixed folder, `~/code-sketch-diagrams/` (change it with the `CODE_SKETCH_DIR` environment variable or `--out`).
+Each diagram is named after its title (`.excalidraw` plus a `.png` preview), and the newest one is always copied to
+`~/code-sketch-diagrams/latest.excalidraw`, so you always know where to find it. Open it by dragging it onto
+excalidraw.com, or with the "Excalidraw" VS Code extension.
 
 ### The spec
 
@@ -68,7 +70,7 @@ This is what Claude writes (the diagram above comes from a spec like it):
 You can also run the script directly:
 
 ```bash
-node skills/code-sketch/scripts/sketch.mjs my-spec.json --out ./diagrams
+node skills/code-sketch/scripts/sketch.mjs my-spec.json
 ```
 
 The full format is in [`SKILL.md`](skills/code-sketch/SKILL.md); two complete specs are in

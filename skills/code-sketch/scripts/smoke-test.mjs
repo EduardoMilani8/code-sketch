@@ -18,8 +18,8 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} 
 
 // 1. every example builds and produces a valid scene
 for (const f of fs.readdirSync(examples).filter((x) => x.endsWith('.json'))) {
-  const r = run(path.join(examples, f));
   const base = f.replace(/\.json$/, '');
+  const r = run(path.join(examples, f), ['--name', base]);
   const scenePath = path.join(out, base + '.excalidraw');
   let valid = false;
   if (r.status === 0 && fs.existsSync(scenePath)) {

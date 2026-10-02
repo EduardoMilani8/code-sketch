@@ -2,13 +2,17 @@
 // code-sketch: turn a small diagram spec (JSON) into an editable .excalidraw file
 // plus a PNG preview the model can look at before handing the result to the user.
 //
-//   node sketch.mjs spec.json --out ./diagrams [--name my-diagram] [--no-png] [--no-limits]
+//   node sketch.mjs spec.json [--out dir] [--name my-diagram] [--no-png] [--svg] [--no-limits]
+//
+// Output goes to one fixed folder (default ~/code-sketch-diagrams, or $CODE_SKETCH_DIR, or --out) and is also
+// copied to latest.excalidraw there, so the file to open in Excalidraw is always at the same path.
 //
 // The model never writes Excalidraw JSON by hand. It writes a spec (nodes, edges, groups);
 // this script does layout, sizing, arrow binding, size guardrails and rendering.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
@@ -39,11 +43,14 @@ const flag = (n) => args.includes(n);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const specPath = args.find((a, i) => !a.startsWith('--') && (i === 0 || !['--out', '--name'].includes(args[i - 1])));
 if (!specPath || flag('--help')) {
-  console.log('usage: node sketch.mjs <spec.json> [--out dir] [--name file-base] [--no-png] [--no-limits]');
+  console.log('usage: node sketch.mjs <spec.json> [--out dir] [--name file-base] [--no-png] [--svg] [--no-limits]');
   process.exit(specPath ? 0 : 1);
 }
-const outDir = path.resolve(opt('--out', '.'));
-const baseName = opt('--name', path.basename(specPath).replace(/\.json$/, ''));
+const outDir = path.resolve(opt('--out', process.env.CODE_SKETCH_DIR || path.join(os.homedir(), 'code-sketch-diagrams')));
+const fileName = path.basename(specPath).replace(/\.json$/, '');
+const slug = (t) => String(t ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+// readable names beat 'spec.excalidraw': prefer --name, then the diagram title, then the spec file name
+let baseName = opt('--name', null) ?? fileName;
 const enforce = !flag('--no-limits');
 
 async function loadDeps() {
@@ -201,6 +208,7 @@ const GROUP_LABEL_H = 30;
 const GROUP_PAD = 14;
 const MARGIN = 40;
 const title = spec.title ?? baseName;
+if (!opt('--name', null) && slug(spec.title)) baseName = slug(spec.title);
 const edgeLabels = edges.map((e, i) => {
   const text = (e.label ?? '') + (e.unsure ? (e.label ? ' ?' : '?') : '');
   const t = text ? (numbered ? `${i + 1}. ${text}` : text) : '';
@@ -590,7 +598,7 @@ const svgPath = path.join(outDir, baseName + '.svg');
 const pngPath = path.join(outDir, baseName + '.png');
 fs.writeFileSync(excalPath, JSON.stringify(scene, null, 2));
 const svg = toSvg(elements);
-fs.writeFileSync(svgPath, svg);
+if (flag('--svg')) fs.writeFileSync(svgPath, svg);
 if (!flag('--no-png')) {
   const png = new Resvg(svg, { fitTo: { mode: 'width', value: Math.min(Math.max(W, 1100), 1600) }, font: { fontFiles: [path.join(here, 'fonts', 'DejaVuSans.ttf')], loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' } }).render().asPng();
   fs.writeFileSync(pngPath, png);
@@ -600,5 +608,7 @@ console.log(`✓ ${nodes.length} nodes, ${edges.length} arrows, ${groups.length}
 for (const w of warnings) console.log('  ! ' + w);
 const proofs = edges.map((e, i) => `    ${i + 1}. ${e.from} → ${e.to}  ${e.at ?? (e.unsure ? '(inferred, not read in code)' : '(no proof given)')}`);
 if (edges.length) console.log('  arrows and where the code proves them (use in your walkthrough):\n' + proofs.join('\n'));
+fs.copyFileSync(excalPath, path.join(outDir, 'latest.excalidraw'));
 console.log(`  excalidraw: ${excalPath}`);
+console.log(`  always-the-same path: ${path.join(outDir, 'latest.excalidraw')}`);
 if (!flag('--no-png')) console.log(`  preview (LOOK AT THIS with the Read tool): ${pngPath}`);
