@@ -26,12 +26,20 @@ A diagram nobody can take in at a glance does not help anyone understand code.
 
 Requires Node 18+. Dependencies (`elkjs`, `@resvg/resvg-js`) install themselves on first run.
 
-As a Claude Code plugin:
+As a Claude Code plugin, run these two commands **one at a time** (pasting both at once sends them to Claude Code as a single
+command, which fails with "not a valid GitHub owner/repo shorthand"):
 
-```
-/plugin marketplace add EduardoMilani8/code-sketch
-/plugin install code-sketch@code-sketch
-```
+1. Add the marketplace:
+
+   ```
+   /plugin marketplace add EduardoMilani8/code-sketch
+   ```
+
+2. Then install the plugin:
+
+   ```
+   /plugin install code-sketch@code-sketch
+   ```
 
 Or copy the skill:
 
